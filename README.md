@@ -26,7 +26,13 @@ brew install chuwee/shellcopy/shellcopy
 sudo apt install ./shellcopy_*_all.deb
 ```
 
-Packages don't touch your rc files. To let plain `cy` pick from what the terminal shows, add the hook line for your shell. `shellcopy init --rc-line SHELL` prints it:
+Packages can't edit your rc files, so after Homebrew or apt, run this once. It adds the shell hook for bash, zsh and fish, so plain `cy` can pick from what the terminal shows. Running it again is harmless, and `shellcopy setup --remove` takes the hook out.
+
+```sh
+shellcopy setup
+```
+
+The hook is one line, which `shellcopy init --rc-line SHELL` prints, if you'd rather add it by hand:
 
 ```sh
 # ~/.bashrc (or ~/.zshrc, with zsh)
@@ -42,7 +48,7 @@ status is-interactive; and type -q shellcopy; and shellcopy init fish | source; 
 
 ```sh
 ./install.sh            # creates .venv with pyte, links `shellcopy` and `cy` into ~/.local/bin,
-                        # and adds the hook line to ~/.bashrc, ~/.zshrc and fish's conf.d (for the ones installed)
+                        # and runs `shellcopy setup`
 ./install.sh --no-rc    # same, without touching your rc files
 ```
 
@@ -81,7 +87,7 @@ Ids are inserted in front of their words, pushing the line right while they're s
 
 ## Where the text comes from
 
-- **`cy`** picks from what this terminal shows, scrollback included. This needs the hook line in your rc file (see Install). It replaces your shell with one running inside util-linux `script`, which logs what the terminal prints (text only, no keystrokes) to a private file under `$XDG_RUNTIME_DIR`. That file is in memory, readable only by you, trimmed past 8 MB and deleted when the terminal closes. A small shellcopy process stays alive alongside it to do the trimming and cleanup. Remove the line, or set `SHELLCOPY_RECORD=0`, to turn it off. Recording is skipped inside tmux, where `cy` reads the screen directly, and in VS Code's terminal.
+- **`cy`** picks from what this terminal shows, scrollback included. This needs the shell hook, which the install script or `shellcopy setup` adds. It replaces your shell with one running inside util-linux `script`, which logs what the terminal prints (text only, no keystrokes) to a private file under `$XDG_RUNTIME_DIR`. That file is in memory, readable only by you, trimmed past 8 MB and deleted when the terminal closes. A small shellcopy process stays alive alongside it to do the trimming and cleanup. Remove the line, or set `SHELLCOPY_RECORD=0`, to turn it off. Recording is skipped inside tmux, where `cy` reads the screen directly, and in VS Code's terminal.
 - **`cmd | cy`** picks from `cmd`'s output.
 - In a terminal that isn't recorded, plain `cy` offers to re-run your last command and capture its output. This needs the bash, zsh or fish hook, which passes your history. On macOS, where recording is unavailable (it needs util-linux `script`), this is what plain `cy` does outside tmux. The command runs in a fresh copy of your shell, so aliases and functions defined in your rc files aren't available.
 - **`cy --print`** prints the selection instead of copying it, for `x=$(cy --print)`.

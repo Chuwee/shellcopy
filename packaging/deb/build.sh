@@ -31,9 +31,8 @@ Maintainer: $maintainer
 Homepage: https://github.com/Chuwee/shellcopy
 Description: copy part of your terminal's output with the keyboard
  Type cy, narrow down to what you want with a few arrow presses, and press
- Enter twice to copy it. Works from any shell; add the hook printed by
- "shellcopy init --rc-line bash" (or zsh, fish) to your rc file to let it pick
- from what the terminal shows.
+ Enter twice to copy it. Works from any shell. Run "shellcopy setup" once to
+ add the shell hook, which lets plain cy pick from what the terminal shows.
 CONTROL
 
 mkdir -p "$root/dist"

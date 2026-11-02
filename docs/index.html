@@ -280,7 +280,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <section id="install">
 	<div class="wrap">
 		<h2>Install</h2>
-		<p class="sub">One line with the script. With Homebrew or apt, add the hook line below afterwards so plain <code>cy</code> can pick from what's on screen.</p>
+		<p class="sub">The script does everything. With Homebrew or apt, run <code>shellcopy setup</code> once afterwards.</p>
 
 		<div class="tabs" role="tablist">
 			<button role="tab" aria-selected="true" data-tab="script">Script</button>
@@ -307,14 +307,19 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 cd shellcopy && ./install.sh</pre></div>
 		</div>
 
-		<h3 style="margin:28px 0 6px;font-size:18px">Add the hook</h3>
-		<p style="color:var(--muted);margin:0 0 14px;font-size:15px">Without the hook, <code>cmd | cy</code> still works, and so does plain <code>cy</code> inside tmux. With it, plain <code>cy</code> works in any terminal.</p>
-		<div class="codeblock"><pre><span class="c"># ~/.bashrc  (in ~/.zshrc, use: shellcopy init zsh)</span>
+		<h3 style="margin:28px 0 6px;font-size:18px">With Homebrew or apt: one more command</h3>
+		<p style="color:var(--muted);margin:0 0 14px;font-size:15px">Packages can't edit your shell's rc files, so run this once afterwards. (The script above does it for you.) It adds the hook for bash, zsh and fish, and running it again is harmless. <code>shellcopy setup --remove</code> takes the hook out.</p>
+		<div class="codeblock"><pre>shellcopy setup</pre></div>
+		<details style="margin-top:6px">
+			<summary style="cursor:pointer;color:var(--muted);font-size:15px">What it adds, or how to do it by hand</summary>
+			<p style="color:var(--muted);margin:12px 0;font-size:15px">Without the hook, <code>cmd | cy</code> still works, and so does plain <code>cy</code> inside tmux. With it, plain <code>cy</code> works in any terminal.</p>
+			<div class="codeblock"><pre><span class="c"># ~/.bashrc  (in ~/.zshrc, use: shellcopy init zsh)</span>
 command -v shellcopy >/dev/null && eval "$(shellcopy init bash)" && shellcopy record</pre></div>
-		<div class="codeblock"><pre><span class="c"># ~/.config/fish/conf.d/shellcopy.fish</span>
+			<div class="codeblock"><pre><span class="c"># ~/.config/fish/conf.d/shellcopy.fish</span>
 status is-interactive; and type -q shellcopy; and shellcopy init fish | source; and shellcopy record</pre></div>
-		<div class="codeblock"><pre><span class="c"># any other shell: recording only</span>
+			<div class="codeblock"><pre><span class="c"># any other shell: recording only</span>
 shellcopy record --check && exec shellcopy record</pre></div>
+		</details>
 	</div>
 </section>
 

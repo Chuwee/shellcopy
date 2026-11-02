@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -443,7 +443,7 @@ def rerun():
 	"""No recording of this terminal: the only way to get output back is to run the last command again."""
 	command = last_command()
 	if not command:
-		raise ShellcopyError('this terminal is not recorded (see `shellcopy record`); pipe output in instead: cmd | cy')
+		raise ShellcopyError('this terminal is not recorded; run `shellcopy setup` once so plain `cy` works, or pipe output in: cmd | cy')
 	shell = parent_shell()
 	sys.stderr.write(f'shellcopy: this terminal is not recorded (see `shellcopy record`).\n'
 	                 f'Re-run \x1b[1m{command}\x1b[0m to grab its output? [Enter/n] ')
@@ -651,13 +651,85 @@ def init_main(argv):
 	return 0
 
 
+# Lines that earlier installs put in rc files (including bashcopy, this tool's old name), removed before adding ours.
+OLD_RC_LINE = re.compile(r'^(# (shell|bash)copy|export (SHELL|BASH)COPY_HOME=.*|source "\$(SHELL|BASH)COPY_HOME/(shell|bash)copy\.sh"'
+                         r'|(shell|bash)copy record( .*)?|.*shellcopy init .*)$')
+
+
+def rc_files():
+	"""(shell, rc file) for each of bash, zsh and fish that's installed, plus the login shell."""
+	home = os.path.expanduser('~')
+	login = os.path.basename(os.environ.get('SHELL', ''))
+	config = os.environ.get('XDG_CONFIG_HOME') or os.path.join(home, '.config')
+	files = {
+		'bash': os.path.join(home, '.bashrc'),
+		'zsh': os.path.join(os.environ.get('ZDOTDIR') or home, '.zshrc'),
+		'fish': os.path.join(config, 'fish', 'conf.d', 'shellcopy.fish'),
+	}
+	return [(shell, path) for shell, path in files.items() if shell == login or shutil.which(shell)]
+
+
+def strip_hook(text):
+	"""Remove our lines (and the blank line before each block) from an rc file's text."""
+	out = []
+	for line in text.splitlines(keepends=True):
+		if OLD_RC_LINE.match(line.rstrip('\n')):
+			if out and not out[-1].strip():
+				out.pop()
+			continue
+		out.append(line)
+	return ''.join(out)
+
+
+def setup_main(argv):
+	parser = argparse.ArgumentParser(prog='shellcopy setup', description=(
+		'Add the shell hook to ~/.bashrc, ~/.zshrc and fish\'s conf.d (for the shells that are installed), so plain '
+		'`cy` can pick from what the terminal shows. Safe to run again.'))
+	parser.add_argument('--remove', action='store_true', help='take the hook out again')
+	args = parser.parse_args(argv)
+	for shell, path in rc_files():
+		if shell == 'fish':
+			old = os.path.join(os.path.dirname(path), 'bashcopy.fish')
+			for stale in ([path, old] if args.remove else [old]):
+				if os.path.exists(stale):
+					os.remove(stale)
+					if stale == path:
+						print(f'› removed the shell hook: {path}')
+			if not args.remove:
+				os.makedirs(os.path.dirname(path), exist_ok=True)
+				with open(path, 'w') as f:
+					f.write(f'# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n{RC_LINES["fish"]}\n')
+				print(f'› added the shell hook to {path}')
+			continue
+		text = open(path).read() if os.path.exists(path) else ''
+		new = strip_hook(text)
+		if not args.remove:
+			if new and not new.endswith('\n'):
+				new += '\n'
+			new += ('\n' if new else '') + f'# shellcopy\n{RC_LINES["posix"].format(shell=shell)}  # copy terminal output with `cy`; remove to uninstall\n'
+		if new != text:
+			with open(path, 'w') as f:  # write in place, so a symlinked rc (dotfile managers) stays a symlink
+				f.write(new)
+		print(f'› {"removed the shell hook from" if args.remove else "added the shell hook to"} {path}')
+	login = os.path.basename(os.environ.get('SHELL', ''))
+	if not args.remove and login and login not in ('bash', 'zsh', 'fish'):
+		print(f'\n› for {login}, cy already works as a command. To record terminals so plain `cy` can pick from\n'
+		      f'  the screen, add the equivalent of this to its startup file:\n'
+		      f'    shellcopy record --check && exec shellcopy record')
+	if not args.remove:
+		print('\nopen a new terminal to start using it.')
+	return 0
+
+
 def main():
 	if sys.argv[1:2] == ['init']:
 		return init_main(sys.argv[2:])
+	if sys.argv[1:2] == ['setup']:
+		return setup_main(sys.argv[2:])
 	if sys.argv[1:2] == ['record']:
 		return record_main(sys.argv[2:])
 	parser = argparse.ArgumentParser(prog='shellcopy', description=__doc__,
-		epilog='subcommands: `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the shell hook (see --help on each)')
+		epilog='subcommands: `shellcopy setup` adds the shell hook to your rc files; `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the hook (see --help on each)')
 	parser.add_argument('--version', action='version', version=f'shellcopy {__version__}')
 	parser.add_argument('--print', action='store_true', help='print the selection to stdout instead of copying it')
 	parser.add_argument('--log', help='a `script` recording of this terminal to pick from')

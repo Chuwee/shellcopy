@@ -31,40 +31,13 @@ echo "› linked shellcopy and cy into $bin"
 case ":$PATH:" in *":$bin:"*) ;; *) echo "  (add $bin to your PATH to use them outside bash, zsh and fish)" ;; esac
 
 if [ "${1:-}" != '--no-rc' ]; then
-	add_posix() {  # $1 rc file, $2 shell name
-		local rc="$1"
-		# Replace earlier lines (an older install, or bashcopy, this tool's old name) rather than adding a second set.
-		# (sed into a temp file, not sed -i, which differs on macOS; cat back so a symlinked rc stays a symlink)
-		if [ -f "$rc" ]; then
-			sed -E '/^# (shell|bash)copy$/d; /^export (SHELL|BASH)COPY_HOME=/d; /^source "\$(SHELL|BASH)COPY_HOME\/(shell|bash)copy\.sh"$/d; /^(shell|bash)copy record( |$)/d; /shellcopy init /d' "$rc" >"$rc.shellcopy-tmp"
-			cat "$rc.shellcopy-tmp" >"$rc"
-			rm -f "$rc.shellcopy-tmp"
-		fi
-		printf '\n# shellcopy\n%s  # copy terminal output with `cy`; remove to uninstall\n' "$("$here/bin/shellcopy" init --rc-line "$2")" >>"$rc"
-		echo "› added the shell hook to $rc"
-	}
-	command -v bash >/dev/null && add_posix "$HOME/.bashrc" bash
-	command -v zsh >/dev/null && add_posix "${ZDOTDIR:-$HOME}/.zshrc" zsh
-	if command -v fish >/dev/null; then
-		conf="${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/shellcopy.fish"
-		rm -f "$(dirname "$conf")/bashcopy.fish"  # the old name
-		mkdir -p "$(dirname "$conf")"
-		printf '# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n%s\n' "$("$here/bin/shellcopy" init --rc-line fish)" >"$conf"
-		echo "› added the shell hook to $conf"
-	fi
-	case "$(basename "${SHELL:-bash}")" in
-		bash | zsh | fish) ;;
-		*)
-			echo
-			echo "› for $(basename "$SHELL"), cy already works as a command. To record terminals so plain"
-			echo '  `cy` can pick from the screen, add the equivalent of this to its startup file:'
-			echo '    shellcopy record --check && exec shellcopy record'
-			echo '  (bash, zsh and fish get a fuller hook from `shellcopy init`)'
-			;;
-	esac
+	"$here/bin/shellcopy" setup
+else
+	echo
+	echo 'skipped the shell hook; run `shellcopy setup` to add it later.'
 fi
 
 echo
-echo 'done. open a new terminal (or source your rc file), then run any command and:'
+echo 'done. then run any command and:'
 echo '  cy                 # halve with the arrows, Enter to start selecting, Enter to copy'
 echo '  ls -la | cy        # or pick from a piped output'

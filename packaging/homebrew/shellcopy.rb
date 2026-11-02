@@ -37,20 +37,18 @@ class Shellcopy < Formula
 
   def caveats
     <<~EOS
-      `cy` works from any shell as is: `cmd | cy`. To let plain `cy` pick from what the terminal shows
-      (scrollback included), add the hook to your shell's rc file:
-        zsh  (~/.zshrc):   #{Utils.safe_popen_read(opt_bin/"shellcopy", "init", "--rc-line", "zsh").strip}
-        bash (~/.bashrc):  #{Utils.safe_popen_read(opt_bin/"shellcopy", "init", "--rc-line", "bash").strip}
-        fish (~/.config/fish/conf.d/shellcopy.fish):
-          #{Utils.safe_popen_read(opt_bin/"shellcopy", "init", "--rc-line", "fish").strip}
-      Recording the terminal needs util-linux `script`, so on macOS plain `cy` reads tmux's screen or
-      offers to re-run your last command instead.
+      To let plain `cy` pick from what the terminal shows (scrollback included), add the shell hook
+      to your rc files once:
+        shellcopy setup
+      `cmd | cy` works without it. Recording the terminal needs util-linux `script`, so on macOS
+      plain `cy` reads tmux's screen or offers to re-run your last command instead.
     EOS
   end
 
   test do
     assert_match version.to_s, shell_output("#{bin}/shellcopy --version")
     assert_match "shellcopy()", shell_output("#{bin}/shellcopy init bash")
+    assert_match "setup", shell_output("#{bin}/shellcopy setup --help")
     assert_match "pyte", shell_output("#{Formula["python@3.13"].opt_bin}/python3.13 -c 'import sys; " \
                                       "sys.path.insert(0, \"#{libexec}/vendor\"); import pyte; print(pyte.__name__)'")
   end
