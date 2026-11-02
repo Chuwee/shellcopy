@@ -2,7 +2,7 @@
 
 Copy part of what's on your terminal without touching the mouse. Type `cy`, then the short id in front of the first word you want and the one in front of the last, and press Enter to copy.
 
-![A mouse fails to select three lines of kubectl output and the screen cracks; then shellcopy selects exactly those lines with cy, e, a and Enter](docs/demo.gif)
+<p align="center"><img src="docs/demo.gif" width="600" alt="A mouse fails to select three lines of kubectl output and the screen cracks; then shellcopy selects exactly those lines with cy, e, a and Enter"></p>
 
 Website: https://chuwee.github.io/shellcopy/
 
