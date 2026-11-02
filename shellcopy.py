@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
