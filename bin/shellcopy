@@ -1,6 +1,6 @@
 #!/bin/sh
 # Launcher: runs shellcopy.py with the checkout's virtualenv. Works from any shell, and through symlinks
-# (install.sh links it into ~/.local/bin as `shellcopy` and `bcp`).
+# (install.sh links it into ~/.local/bin as `shellcopy` and `shcp`).
 self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
 home=$(cd "$(dirname "$self")/.." && pwd)
 py="$home/.venv/bin/python"

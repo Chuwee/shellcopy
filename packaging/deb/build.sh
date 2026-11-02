@@ -13,7 +13,7 @@ install -Dm644 "$root/shellcopy.py" "$stage/usr/share/shellcopy/shellcopy.py"
 install -Dm755 "$root/bin/shellcopy" "$stage/usr/share/shellcopy/bin/shellcopy"
 mkdir -p "$stage/usr/bin"
 ln -s ../share/shellcopy/bin/shellcopy "$stage/usr/bin/shellcopy"
-ln -s ../share/shellcopy/bin/shellcopy "$stage/usr/bin/bcp"
+ln -s ../share/shellcopy/bin/shellcopy "$stage/usr/bin/shcp"
 install -Dm644 "$root/README.md" "$stage/usr/share/doc/shellcopy/README.md"
 install -Dm644 "$root/LICENSE" "$stage/usr/share/doc/shellcopy/copyright"
 
@@ -30,7 +30,7 @@ Recommends: wl-clipboard | xclip | xsel
 Maintainer: $maintainer
 Homepage: https://github.com/Chuwee/shellcopy
 Description: copy part of your terminal's output with the keyboard
- Type bcp, narrow down to what you want with a few arrow presses, and press
+ Type shcp, narrow down to what you want with a few arrow presses, and press
  Enter twice to copy it. Works from any shell; add the hook printed by
  "shellcopy init --rc-line bash" (or zsh, fish) to your rc file to let it pick
  from what the terminal shows.

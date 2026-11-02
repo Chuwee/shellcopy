@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -433,7 +433,7 @@ def last_command():
 	shell integrations fill in. Shells without an integration don't pass their history."""
 	for line in os.environ.get('SHELLCOPY_HISTORY', '').splitlines():
 		line = line.strip()
-		if line and 'shellcopy' not in line and 'bcp' not in line:
+		if line and 'shellcopy' not in line and 'shcp' not in line:
 			return line
 	return None
 
@@ -442,7 +442,7 @@ def rerun():
 	"""No recording of this terminal: the only way to get output back is to run the last command again."""
 	command = last_command()
 	if not command:
-		raise ShellcopyError('this terminal is not recorded (see `shellcopy record`); pipe output in instead: cmd | bcp')
+		raise ShellcopyError('this terminal is not recorded (see `shellcopy record`); pipe output in instead: cmd | shcp')
 	shell = parent_shell()
 	sys.stderr.write(f'shellcopy: this terminal is not recorded (see `shellcopy record`).\n'
 	                 f'Re-run \x1b[1m{command}\x1b[0m to grab its output? [Enter/n] ')
@@ -500,7 +500,7 @@ def why_not_record():
 	if os.environ.get('SHELLCOPY_RECORD') == '0':
 		return 'SHELLCOPY_RECORD=0'
 	if os.environ.get('TMUX'):
-		return 'inside tmux, where bcp reads the screen directly'
+		return 'inside tmux, where shcp reads the screen directly'
 	if os.environ.get('TERM_PROGRAM') == 'vscode':
 		return "VS Code's terminal"
 	try:
@@ -577,14 +577,14 @@ def record(shell):
 	if rc != 0 and time.monotonic() - started < 2:
 		# The recorder failed to start. This process replaced the shell, so start it unrecorded rather
 		# than closing the terminal.
-		sys.stderr.write('shellcopy: could not start recording this terminal; plain `bcp` will re-run commands instead\n')
+		sys.stderr.write('shellcopy: could not start recording this terminal; plain `shcp` will re-run commands instead\n')
 		os.execve(shell, [shell], dict(os.environ, SHELLCOPY_RECORD='0'))
 	return rc
 
 
 def record_main(argv):
 	parser = argparse.ArgumentParser(prog='shellcopy record', description=(
-		'Run SHELL with this terminal recorded, so plain `bcp` can pick from what it shows. '
+		'Run SHELL with this terminal recorded, so plain `shcp` can pick from what it shows. '
 		'From an rc file: shellcopy record --check && exec shellcopy record SHELL'))
 	parser.add_argument('shell', nargs='?', help='the shell to run (default: $SHELL)')
 	parser.add_argument('--check', action='store_true', help='only exit 0 if this terminal should be recorded, 1 if not')
@@ -596,7 +596,7 @@ def record_main(argv):
 
 # ---------------------------------------------------------------- shell integration
 
-# `shellcopy init SHELL` prints these; the rc file evals them. `bcp` works without them as a plain command;
+# `shellcopy init SHELL` prints these; the rc file evals them. `shcp` works without them as a plain command;
 # they hand shellcopy your history (so an unrecorded terminal can re-run your last command) and make
 # `shellcopy record` replace the shell with a recorded one. {bin} is the shellcopy executable.
 INIT_POSIX = """\
@@ -609,7 +609,7 @@ shellcopy() {{
 	fi
 	SHELLCOPY_HISTORY="$(fc -lnr -10 2>/dev/null)" {bin} "$@"
 }}
-alias bcp=shellcopy
+alias shcp=shellcopy
 """
 
 INIT_FISH = """\
@@ -623,7 +623,7 @@ function shellcopy --description 'pick part of the terminal output with the keyb
     set -lx SHELLCOPY_HISTORY (history --max 10 | string collect)
     {bin} $argv
 end
-function bcp --wraps shellcopy --description 'pick part of the terminal output with the keyboard and copy it'
+function shcp --wraps shellcopy --description 'pick part of the terminal output with the keyboard and copy it'
     shellcopy $argv
 end
 """
