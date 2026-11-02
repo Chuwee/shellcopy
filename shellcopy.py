@@ -4,6 +4,7 @@
 import argparse
 import base64
 import curses
+import functools
 import os
 import re
 import shlex
@@ -13,7 +14,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -63,10 +64,20 @@ def tokenize(lines):
 	return tokens
 
 
+@functools.lru_cache(maxsize=8)  # drawn on every key press; the same count gives the same ids
 def make_labels(count):
-	if count <= len(ALPHABET):
-		return list(ALPHABET[:count])
-	return [a + b for a in ALPHABET for b in ALPHABET][:count]
+	"""`count` ids, shortest first, none a prefix of another (so typing one is never ambiguous). Starts from one
+	letter each and, only as far as needed, turns the least convenient of the shortest ids into a prefix for
+	26 longer ones: 30 words get 25 one-letter ids and 5 two-letter ones, and any number of words gets ids."""
+	ease = lambda label: (len(label), [ALPHABET.index(c) for c in label])  # shorter, then home row first
+	labels = list(ALPHABET)
+	while len(labels) < count:
+		shortest = min(map(len, labels))
+		prefix = max((label for label in labels if len(label) == shortest), key=ease)  # the least convenient
+		labels.remove(prefix)
+		labels += [prefix + letter for letter in ALPHABET]
+	# Easiest first: the nearest words, which get the first ids, get the best ones.
+	return tuple(sorted(labels, key=ease)[:count])
 
 
 class Picker:
