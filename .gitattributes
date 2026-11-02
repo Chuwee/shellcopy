@@ -1,0 +1,2 @@
+# Unix line endings everywhere, even in checkouts made by Windows git (e.g. for WSL), so scripts run.
+* text=auto eol=lf

@@ -34,5 +34,5 @@ fi
 
 echo
 echo 'done. then run any command and:'
-echo '  cy                 # halve with the arrows, Enter to start selecting, Enter to copy'
+echo '  cy                 # type the id of the first word, then the last, then Enter (Tab: halve with arrows)'
 echo '  ls -la | cy        # or pick from a piped output'

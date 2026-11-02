@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>shellcopy</title>
-<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type cy, halve the screen with a few arrow presses, press Enter to copy.">
+<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type cy, type the short ids of the first and last word you want, press Enter to copy.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -83,7 +83,7 @@ body {
 	overflow-x: hidden;
 }
 a { color: var(--accent); }
-code, kbd, pre, .mono, .screen, .cscreen { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-ligatures: none; }
+code, kbd, pre, .mono, .screen, .cscreen, .status { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-ligatures: none; }
 code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font-size: .9em; }
 kbd {
 	display: inline-block; min-width: 1.7em; padding: .05em .4em; text-align: center;
@@ -149,14 +149,23 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .cterm-body { container-type: inline-size; position: relative; }
 .cscreen {
 	position: relative; margin: 0; white-space: pre; overflow: hidden;
-	font-size: min(13px, calc((100cqi - 24px) / 33.8)); line-height: 1.6; padding: 10px 12px 8px;
+	font-size: min(13px, calc((100cqi - 24px) / var(--cols-em, 33.8))); line-height: 1.6; padding: 10px 12px 8px;
 }
+/* The after lane is 64 columns: ids are inserted in front of words and push each line right. */
+#a-screen { --cols-em: 38.7; }
 .cscreen .dim { color: var(--term-dim); }
 .cscreen .on { color: #fff; font-weight: 600; }
 .cscreen .prompt { color: var(--term-prompt); }
 .cscreen .msel { background: var(--term-mouse-sel); color: #fff; }
 .cscreen .rsel { background: var(--term-text); color: var(--term-bg); }
-.cscreen .cur { background: var(--term-prompt); color: var(--term-bg); }
+.cscreen .cur, .screen .cur { background: var(--term-prompt); color: var(--term-bg); }
+.screen .rsel { background: var(--term-text); color: var(--term-bg); }
+/* Ids: black on yellow, bold, in front of their word; letters already typed go dim. */
+.idb { background: var(--term-hl); color: var(--term-hl-text); font-weight: 700; }
+.idb.idd { color: rgba(22, 24, 29, .42); font-weight: 400; }
+.screen .idb { cursor: pointer; position: relative; }
+.screen .idb::after { content: ""; position: absolute; inset: -5px -3px; }  /* a bigger tap target, no layout change */
+.screen .idb:hover { box-shadow: 0 0 0 1px var(--term-hl); }
 .cscreen .blink { background: var(--term-text); color: var(--term-bg); animation: blink 1.1s steps(1) infinite; }
 .cscreen .faint { color: #7d8490; }
 .cscreen .sbar { display: block; margin: 0 -12px; padding: 0 12px; background: var(--term-status); color: #0b1a1d; overflow: hidden; text-overflow: ellipsis; }
@@ -262,6 +271,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .pad .right { grid-column: 3; grid-row: 2; }
 .demo-actions { display: flex; gap: 6px; }
 .demo-actions button { padding: 6px 10px; }
+.demo-actions .mode-btn { min-width: 92px; }
+.note { color: var(--muted); font-size: 15px; margin: 18px 0 0; }
 
 /* ---------------------------------------------------------------- sections */
 section { padding: 64px 0 8px; }
@@ -330,6 +341,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 	.hero-install pre { font-size: 12px; padding: 12px 70px 12px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 	.codeblock pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 	.goal { font-size: 14px; border-radius: 12px; }
+	.demo-actions { display: grid; grid-template-columns: auto auto; }
+	table.keys { min-width: 720px; font-size: 14px; }  /* four columns: scroll the table, not the page */
 }
 @media (prefers-reduced-motion: reduce) {
 	html { scroll-behavior: auto; }
@@ -351,7 +364,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 	<div class="hero">
 		<h1>Copy from your terminal.<br><em>Leave the mouse alone.</em></h1>
-		<p class="lead">Type <code>cy</code>, narrow down to what you want with a few arrow presses, and press Enter to copy. No more dragging and hoping you caught the right lines.</p>
+		<p class="lead">Type <code>cy</code>, then the short id in front of the first word you want and the one in front of the last. Press Enter to copy. No more dragging and hoping you caught the right lines.</p>
 		<div class="hero-install">
 			<div class="codeblock"><pre><span class="c p">$ </span>curl -fsSL https://chuwee.github.io/shellcopy/install.sh | sh</pre></div>
 		</div>
@@ -370,7 +383,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			<h2 id="compare-title">Same output, same task. Two ways.</h2>
 			<div class="goal"><b>Goal:</b> copy the three crashing <span class="tgt">worker-…</span> lines, exactly</div>
 		</div>
-		<p class="sr-only">An animation compares the two. With the mouse, the drag grabs one line too many, then one line too few, then starts one character late, and only gets it right on the fourth attempt after about twelve seconds. With shellcopy, the keys c, y, Enter, down, down, Enter, Space, down, down, Enter copy the three lines in about three seconds.</p>
+		<p class="sr-only">An animation compares the two. With the mouse, the drag grabs one line too many, then one line too few, then starts one character late, and only gets it right on the fourth attempt after about twelve seconds. With shellcopy, the keys c, y, Enter run it and put a short id in front of every word. Typing e, the id of the first worker name, then a, the id of 51m at the end of the last worker line, selects exactly the three lines, and Enter copies them: six keys, under three seconds.</p>
 		<div class="compare-grid">
 			<div class="lane" id="lane-before">
 				<div class="lane-head">
@@ -416,16 +429,16 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <section id="try">
 	<div class="wrap">
 		<p class="eyebrow">Try it</p>
-		<h2>Halve it yourself</h2>
-		<p class="sub">This is the same halving the real tool does. Click the terminal, then use the arrow keys (or the buttons) until one word is left.</p>
+		<h2>Type two ids, press Enter</h2>
+		<p class="sub">The same picker as the real tool, in its default ids mode. Click the terminal, type the yellow id in front of the first word you want, then the id of the last one, and press Enter. On a phone, tap the ids. Or press Tab to halve the screen with the arrows instead.</p>
 		<div class="demo">
-			<div class="term" id="term" tabindex="0" aria-label="Interactive demo: use the arrow keys to halve the words on screen">
-				<div class="term-bar"><i></i><i></i><i></i><span class="title">try it: click here, then use the arrow keys</span></div>
+			<div class="term" id="term" tabindex="0" aria-label="Interactive demo: type the id in front of a word to start the selection there, another id to end it, then Enter to copy. Tab switches to halving with the arrow keys. Shift+Tab leaves the demo.">
+				<div class="term-bar"><i></i><i></i><i></i><span class="title" id="term-title">try it: click here, then type an id</span></div>
 				<div class="screen" id="screen"></div>
 				<div class="status" id="status"></div>
 			</div>
 			<div class="demo-help">
-				<span>Each arrow keeps the half of the words it points at. <kbd>Enter</kbd> takes the first one left. <kbd>⌫</kbd> undoes the last press.</span>
+				<span id="demo-hint"></span>
 				<div style="display:flex;gap:10px;align-items:center">
 					<div class="pad" aria-label="Arrow buttons">
 						<button class="up" data-key="ArrowUp" aria-label="Up">↑</button>
@@ -435,6 +448,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 					</div>
 					<div class="demo-actions">
 						<button data-key="Enter">Enter</button>
+						<button data-key="Backspace" aria-label="Backspace: undo">Undo</button>
+						<button data-key="Tab" class="mode-btn" id="mode-btn">Tab: halve</button>
 						<button data-key="Escape">Reset</button>
 					</div>
 				</div>
@@ -446,25 +461,26 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <section id="how">
 	<div class="wrap">
 		<p class="eyebrow">How it works</p>
-		<h2>Narrow down fast, then point exactly</h2>
-		<p class="sub">Two steps, or one if you jump by id. Your hands never leave the keyboard.</p>
+		<h2>Point at the first word, then the last</h2>
+		<p class="sub">Two ids and Enter, or halve the screen if you'd rather. Your hands never leave the keyboard.</p>
 		<div class="grid">
 			<div class="card">
-				<span class="num">1 · halve</span>
-				<h3>Halve the screen</h3>
-				<p>Every word on screen starts in play. Each arrow keeps the half it points at. Empty space never costs a press, and 100 near-identical IPs take about 7.</p>
+				<span class="num">1 · start</span>
+				<h3>Type the id of the first word</h3>
+				<p>Every word on screen gets a short id in front of it, pushing the line right so nothing is covered. The words nearest the bottom, where the newest output is, get the shortest and easiest ids. Type one and the selection starts at that word.</p>
 			</div>
 			<div class="card">
-				<span class="num">2 · point</span>
-				<h3>Point and select</h3>
-				<p>When one word is left, a cursor lands on it. Move by character, word or line, press Enter to start selecting and Enter again to copy.</p>
+				<span class="num">2 · end</span>
+				<h3>Type the id of the last word</h3>
+				<p>The selection now runs to the end of that word, across lines if it has to. Press Enter to copy, or fine-tune the end with the arrows first. Shift+id copies right away, and Backspace undoes the first pick.</p>
 			</div>
 			<div class="card">
-				<span class="num">tab · ids</span>
-				<h3>Or pick both ends by id</h3>
-				<p>Press Tab for ids mode: short ids appear in front of the words. Type one to start the selection there and another to end it there, then press Enter. Shift+id copies right away. Tab switches back, and <code>cy --ids</code> starts in this mode.</p>
+				<span class="num">tab · halve</span>
+				<h3>Or halve the screen</h3>
+				<p>Press Tab to halve instead: each arrow keeps the half of the words it points at, and 100 near-identical IPs take about 7 presses. When one word is left, a cursor lands on it. Move by character, word or line, press Enter to start selecting and Enter again to copy.</p>
 			</div>
 		</div>
+		<p class="note">shellcopy remembers the last mode you used; <code>cy --ids</code> / <code>cy --halve</code> or <code>SHELLCOPY_MODE=ids|halve</code> pick one explicitly.</p>
 	</div>
 </section>
 
@@ -555,22 +571,22 @@ shellcopy record --check && exec shellcopy record</pre></div>
 	<div class="wrap">
 		<p class="eyebrow">Reference</p>
 		<h2>Keys</h2>
-		<p class="sub">Backspace always goes one step back.</p>
+		<p class="sub">Backspace always goes one step back. Tab switches between ids and halving, and the mode you switch to is the one <code>cy</code> starts in next time.</p>
 		<div class="table-scroll">
 		<table class="keys">
-			<thead><tr><th>Key</th><th>While halving</th><th>With the cursor</th></tr></thead>
+			<thead><tr><th>Key</th><th>In ids mode (default)</th><th>While halving</th><th>With the cursor</th></tr></thead>
 			<tbody>
-				<tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>keep that half of the words</td><td>move one character or line</td></tr>
-				<tr><td><kbd>Enter</kbd></td><td>put the cursor on the first word left</td><td>first press: start selecting; second press: copy</td></tr>
-				<tr><td><kbd>Tab</kbd></td><td>switch to ids mode, and back</td><td>ids mode on every word on screen</td></tr>
-				<tr><td>id</td><td colspan="2">in ids mode, the first id starts the selection at that word and the second ends it there; Enter copies</td></tr>
-				<tr><td><kbd>Shift</kbd> + id</td><td colspan="2">copy right away: that word, or up to it once a start is picked</td></tr>
-				<tr><td><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td></td><td>jump a whole word</td></tr>
-				<tr><td><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></td><td></td><td>jump 5 lines (<kbd>PgUp</kbd>/<kbd>PgDn</kbd> a page, <kbd>Home</kbd>/<kbd>End</kbd> line start and end)</td></tr>
-				<tr><td><kbd>Space</kbd></td><td></td><td>select whole lines</td></tr>
-				<tr><td><kbd>z</kbd></td><td></td><td>halve again from the whole screen</td></tr>
-				<tr><td><kbd>⌫</kbd></td><td>undo the last halving</td><td>clear the selection, or go back to halving</td></tr>
-				<tr><td><kbd>Esc</kbd></td><td>quit</td><td>quit</td></tr>
+				<tr><td>id</td><td>first id: start the selection at that word; second id: end it there</td><td></td><td></td></tr>
+				<tr><td><kbd>Shift</kbd> + id</td><td>copy right away: that word, or up to it once a start is picked</td><td></td><td></td></tr>
+				<tr><td><kbd>Enter</kbd></td><td>copy, once a start is picked</td><td>put the cursor on the first word left</td><td>first press: start selecting; second press: copy</td></tr>
+				<tr><td><kbd>Tab</kbd></td><td>switch to halving</td><td>switch to ids mode</td><td>ids mode on every word on screen</td></tr>
+				<tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>before a pick: halve instead; after: move the end</td><td>keep that half of the words</td><td>move one character or line</td></tr>
+				<tr><td><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td></td><td></td><td>jump a whole word</td></tr>
+				<tr><td><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></td><td></td><td></td><td>jump 5 lines (<kbd>PgUp</kbd>/<kbd>PgDn</kbd> a page, <kbd>Home</kbd>/<kbd>End</kbd> line start and end)</td></tr>
+				<tr><td><kbd>Space</kbd></td><td></td><td></td><td>select whole lines</td></tr>
+				<tr><td><kbd>z</kbd></td><td></td><td></td><td>halve again from the whole screen</td></tr>
+				<tr><td><kbd>⌫</kbd></td><td>undo the first pick</td><td>undo the last halving</td><td>clear the selection, or go back to halving</td></tr>
+				<tr><td><kbd>Esc</kbd></td><td>quit</td><td>quit</td><td>quit</td></tr>
 			</tbody>
 		</table>
 		</div>
@@ -585,7 +601,7 @@ shellcopy record --check && exec shellcopy record</pre></div>
 </footer>
 
 <script>
-// ---------------------------------------------------------------- the demo: the same halving as shellcopy.py
+// ---------------------------------------------------------------- the demo: the same picker as shellcopy.py
 const OUTPUT = [
 	{ prompt: '$ ', text: 'docker ps' },
 	{ text: 'CONTAINER ID   IMAGE            STATUS         PORTS                    NAMES' },
@@ -614,11 +630,76 @@ OUTPUT.forEach((line, row) => {
 	}
 });
 
-const all = tokens.map((_, i) => i);
-let region, history, picked, presses;
-const screen = document.getElementById('screen'), status = document.getElementById('status'), term = document.getElementById('term');
+// ---------------------------------------------------------------- ids, exactly as shellcopy.py hands them out
+const ALPHABET = 'asdfjklghqwertyuiopzxcvbnm';  // easiest to type first
+// Shorter first, then home row first.
+function easier(a, b) {
+	if (a.length !== b.length) return a.length - b.length;
+	for (let k = 0; k < a.length; k++) { const d = ALPHABET.indexOf(a[k]) - ALPHABET.indexOf(b[k]); if (d) return d; }
+	return 0;
+}
+// `count` ids, none a prefix of another: one letter each, and only as far as needed the least convenient of the
+// shortest ids becomes a prefix for 26 longer ones (30 words get 25 one-letter ids and 5 two-letter ones).
+function makeLabels(count) {
+	let labels = ALPHABET.split('');
+	while (labels.length < count) {
+		const shortest = Math.min(...labels.map(l => l.length));
+		const prefix = labels.filter(l => l.length === shortest).reduce((m, l) => easier(l, m) > 0 ? l : m);
+		labels = labels.filter(l => l !== prefix).concat(ALPHABET.split('').map(c => prefix + c));
+	}
+	return labels.sort(easier).slice(0, count);
+}
+// id -> word index. The words nearest the bottom (then the right) get the first, easiest ids.
+function assignIds(list, toks) {
+	const ordered = list.slice().sort((a, b) => toks[b][0] - toks[a][0] || toks[b][1] - toks[a][1]);
+	const labels = makeLabels(ordered.length);
+	return new Map(ordered.map((i, k) => [labels[k], i]));
+}
+// Where each shown id goes: "row:col" of its word -> the id. Only ids that still match what's been typed.
+function badgesAt(ids, toks, typed) {
+	const at = new Map();
+	ids.forEach((i, label) => { if (label.startsWith(typed)) at.set(toks[i][0] + ':' + toks[i][1], label); });
+	return at;
+}
+// The cells of one row of text, with each id inserted in front of its word (pushing the line right, so ids
+// never cover text). `cls(c)` is the class of text column c. Typed letters of an id go dim.
+function cellsWithIds(text, row, at, typed, cls) {
+	const cells = [];
+	for (let c = 0; c < text.length; c++) {
+		const label = at && at.get(row + ':' + c);
+		if (label) for (let k = 0; k < label.length; k++) cells.push([label[k], k < typed.length ? 'idb idd' : 'idb', label]);
+		cells.push([text[c], cls(c)]);
+	}
+	return cells;
+}
+function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+// Cells to HTML: runs of the same class (and id) share a span.
+function cellsHtml(cells) {
+	let out = '', run = '', cur = null, id = null;
+	const flush = () => { if (run) out += cur || id ? `<span${cur ? ` class="${cur}"` : ''}${id ? ` data-id="${id}"` : ''}>${escapeHtml(run)}</span>` : escapeHtml(run); run = ''; };
+	for (const [ch, k = '', label = null] of cells) {
+		if (k !== cur || label !== id) { flush(); cur = k; id = label; }
+		run += ch;
+	}
+	flush();
+	return out;
+}
+const before = (a, b) => a[0] - b[0] || a[1] - b[1];
+// Is text column c of row r between two inclusive [row, col] ends?
+function inRange(r, c, a, b) { const [s, e] = before(a, b) <= 0 ? [a, b] : [b, a]; return before([r, c], s) >= 0 && before([r, c], e) <= 0; }
 
-function reset() { region = all.slice(); history = []; picked = null; presses = 0; draw(); }
+// ---------------------------------------------------------------- the try-it terminal
+const all = tokens.map((_, i) => i);
+const lineText = row => (OUTPUT[row].prompt || '') + OUTPUT[row].text;
+const LAST_ROW = OUTPUT.length - 2;  // the last row with words (the cy line isn't offered)
+let mode = 'ids', lastMode = 'ids';  // like the real tool, Esc (a fresh start) begins in the mode last switched to with Tab
+let region, history, picked, presses;
+let typed, start, sel, adjusting, undo;  // ids mode: typed letters, the first word picked, the selection, arrows used, undo stack
+const screen = document.getElementById('screen'), status = document.getElementById('status'), term = document.getElementById('term');
+const hint = document.getElementById('demo-hint'), modeBtn = document.getElementById('mode-btn'), termTitle = document.getElementById('term-title');
+
+function clearIds() { typed = ''; start = null; sel = null; adjusting = false; undo = []; }
+function reset() { mode = lastMode; region = all.slice(); history = []; picked = null; presses = 0; clearIds(); draw(); }
 
 function halve(key) {
 	if (picked !== null) return;
@@ -637,15 +718,100 @@ function halve(key) {
 
 function firstLeft() { return region.slice().sort((a, b) => tokens[a][0] - tokens[b][0] || tokens[a][1] - tokens[b][1])[0]; }
 
-function pick(i) {
-	picked = i;
-	const [row, start, end] = tokens[i];
-	const line = OUTPUT[row], text = ((line.prompt || '') + line.text).slice(start, end);
+function copy(text, a, b) {
 	if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
-	picked = { i, text };
+	picked = { text, a, b };
+}
+function pick(i) {
+	const [row, s, e] = tokens[i];
+	copy(lineText(row).slice(s, e), [row, s], [row, e - 1]);
+}
+// The selected text, like the real tool: from the first end to the other, both included.
+function selectionText(a, b) {
+	const [s, e] = before(a, b) <= 0 ? [a, b] : [b, a];
+	if (s[0] === e[0]) return lineText(s[0]).slice(s[1], e[1] + 1);
+	const lines = [lineText(s[0]).slice(s[1])];
+	for (let r = s[0] + 1; r < e[0]; r++) lines.push(lineText(r));
+	lines.push(lineText(e[0]).slice(0, e[1] + 1));
+	return lines.map(l => l.trimEnd()).join('\n');
+}
+function copySelection() { copy(selectionText(sel.a, sel.b), sel.a, sel.b); }
+
+// The ids on screen: on the words still in play before the first pick, then on every word, for picking the end.
+function currentIds() { return mode === 'ids' && !picked && !adjusting ? assignIds(start === null ? region : all, tokens) : null; }
+
+function snapshot() { undo.push({ typed: '', start, sel: sel && { a: sel.a.slice(), b: sel.b.slice() }, adjusting, presses }); }
+function typeLetter(letter, instant) {
+	const ids = currentIds();
+	if (!ids) return;
+	typed += letter;
+	presses++;
+	if (!ids.has(typed)) {
+		if (![...ids.keys()].some(l => l.startsWith(typed))) typed = '';  // no such id: start over
+		draw();
+		return;
+	}
+	const i = ids.get(typed);
+	typed = '';
+	const [row, s, e] = tokens[i];
+	snapshot();
+	if (start === null) {
+		// The first id starts the selection at that word, covering it.
+		start = i;
+		sel = { a: [row, s], b: [row, e - 1] };
+	} else {
+		// The second one ends it: from the start of the earlier word to the end of the later one, either order.
+		const [first, last] = [start, i].sort((x, y) => before(tokens[x], tokens[y]));
+		sel = { a: [tokens[first][0], tokens[first][1]], b: [tokens[last][0], tokens[last][2] - 1] };
+		adjusting = true;
+	}
+	if (instant) copySelection();
+	draw();
+}
+// After a pick, the arrows move the end of the selection by a character or a line.
+function moveEnd(key) {
+	const b = sel.b.slice();
+	if (key === 'ArrowLeft') b[1]--;
+	if (key === 'ArrowRight') b[1]++;
+	if (key === 'ArrowUp') b[0] = Math.max(0, b[0] - 1);
+	if (key === 'ArrowDown') b[0] = Math.min(LAST_ROW, b[0] + 1);
+	b[1] = Math.max(0, Math.min(b[1], lineText(b[0]).length - 1));
+	sel.b = b;
 }
 
-function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function setMode(m) { mode = m; clearIds(); if (picked) { picked = null; region = all.slice(); history = []; presses = 0; } }
+
+function handle(key, shift) {
+	if (key === 'Escape') return reset();
+	if (key === 'Tab') { lastMode = mode === 'ids' ? 'halve' : 'ids'; setMode(lastMode); return draw(); }
+	if (mode === 'halve') {
+		if (key.startsWith('Arrow')) halve(key);
+		else if (key === 'Enter' && !picked) { presses++; pick(firstLeft()); draw(); }
+		else if (key === 'Backspace') {
+			if (picked) { picked = null; if (region.length === 1 && history.length) region = history.pop(); presses = Math.max(0, presses - 1); draw(); }
+			else if (history.length) { region = history.pop(); presses--; draw(); }
+		}
+		return;
+	}
+	// ids mode
+	if (key === 'Backspace') {
+		if (picked) picked = null;
+		else if (typed) typed = typed.slice(0, -1);
+		else if (undo.length) ({ start, sel, adjusting, presses } = undo.pop());
+		return draw();
+	}
+	if (picked) return;
+	if (/^[a-z]$/.test(key)) return typeLetter(key, shift);
+	if (key === 'Enter' && sel) { presses++; copySelection(); return draw(); }
+	if (key.startsWith('Arrow')) {
+		if (sel) {  // fine-tune the end by hand
+			if (!adjusting) { snapshot(); adjusting = true; }
+			presses++; typed = ''; moveEnd(key); return draw();
+		}
+		mode = 'halve'; typed = ''; halve(key);  // nothing picked yet: halve instead, like the real tool
+		draw();
+	}
+}
 
 // Where the arrows would cut, like the real tool draws it while halving: `above` is the last row ↑ keeps (it gets a
 // line under it, from column `left` to `right`), and `bar` is the column just before the half → keeps (a │ in the gaps,
@@ -678,58 +844,76 @@ function splitCls(split, r, c, ch) {
 	return k;
 }
 
+const HINT = {
+	ids: 'Type (or tap) an id to start there, another to end there, then <kbd>Enter</kbd>. <kbd>Shift</kbd>+id copies right away, <kbd>Backspace</kbd> undoes, <kbd>Tab</kbd> halves instead.',
+	halve: 'Each arrow keeps the half of the words it points at. <kbd>Enter</kbd> takes the first one left, <kbd>Backspace</kbd> undoes the last press, <kbd>Tab</kbd> goes back to ids.',
+};
 function draw() {
 	const inRegion = new Set(region);
-	const pickedIndex = picked ? picked.i : -1;
-	const split = picked ? null : splitInfo(region, tokens);
+	const ids = currentIds();
+	const at = ids && badgesAt(ids, tokens, typed);
+	const split = picked || mode !== 'halve' ? null : splitInfo(region, tokens);
+	// ids mode: once the first word is picked, the end can be any word on screen
+	const inPlay = mode === 'ids' && start !== null ? new Set(all) : inRegion;
 	const html = OUTPUT.map((line, row) => {
-		const text = withBar((line.prompt || '') + line.text, row, split);
+		const text = withBar(lineText(row), row, split);
 		// The class of each column: prompt, a word (in play, out, or picked), or the gaps between.
 		const cls = new Array(text.length).fill(picked || !line.typed ? 'dim' : '');
 		if (line.prompt) for (let c = 0; c < line.prompt.length; c++) cls[c] = 'prompt';
-		tokens.forEach(([r, start, end], i) => {
+		tokens.forEach(([r, s, e], i) => {
 			if (r !== row) return;
-			const k = i === pickedIndex ? 'w picked' : (picked ? 'w dim' : (inRegion.has(i) ? 'w on' : 'w dim'));
-			for (let c = start; c < end; c++) cls[c] = k;
+			const k = picked ? 'w dim' : (inPlay.has(i) ? 'w on' : 'w dim');
+			for (let c = s; c < e; c++) cls[c] = k;
 		});
-		let out = '', run = '', cur = null;
-		for (let c = 0; c < text.length; c++) {
-			const k = (cls[c] + splitCls(split, row, c, text[c])).trim();
-			if (k !== cur) { if (run) out += cur ? `<span class="${cur}">${escapeHtml(run)}</span>` : escapeHtml(run); run = ''; cur = k; }
-			run += text[c];
-		}
-		if (run) out += cur ? `<span class="${cur}">${escapeHtml(run)}</span>` : escapeHtml(run);
+		const cellCls = c => {
+			if (picked && !line.typed && inRange(row, c, picked.a, picked.b)) return 'picked';
+			if (!picked && sel && !line.typed) {
+				if (adjusting && row === sel.b[0] && c === sel.b[1]) return 'cur';
+				if (inRange(row, c, sel.a, sel.b)) return 'rsel';
+			}
+			return (cls[c] + splitCls(split, row, c, text[c])).trim();
+		};
+		let out = cellsHtml(cellsWithIds(text, row, at, typed, cellCls));
 		if (line.typed) out += '<span style="background:#d7dae0">&nbsp;</span>';
 		return out;
 	}).join('\n');
 	screen.innerHTML = html;
+	const keys = `${presses} ${presses === 1 ? 'key' : 'keys'}`;
 	if (picked) {
 		status.className = 'status done';
-		status.textContent = ` copied ${picked.text} · ${presses} ${presses === 1 ? 'press' : 'presses'} · Esc to try again`;
+		status.textContent = ` copied ${picked.text.replace(/\n/g, ' ⏎ ')} · ${mode === 'halve' ? `${presses} ${presses === 1 ? 'press' : 'presses'}` : keys} · Esc to try again`;
+	} else if (mode === 'halve') {
+		status.className = 'status';
+		status.textContent = ` ${region.length} words · ↑↓ keep the half above/below the line · ←→ left/right of │ · Enter take the first one left · Tab ids · ⌫ undo · Esc reset`;
 	} else {
 		status.className = 'status';
-		status.textContent = ` ${region.length} words · ↑↓ keep the half above/below the line · ←→ left/right of │ · Enter take the first one left · ⌫ undo · Esc reset`;
+		status.textContent = adjusting ? ' SELECTING · arrows move the end · Enter copy · Backspace undo · Tab halve · Esc reset'
+			: start === null ? ' IDS · type an id to start there · Shift+id copies that word · Tab halve instead · Esc reset'
+			: ' IDS · type an id to end there · Enter copy · Shift+id copy up to there · arrows adjust · Backspace undo · Tab halve';
 	}
-}
-
-function handle(key) {
-	if (key.startsWith('Arrow')) halve(key);
-	else if (key === 'Enter' && !picked) { presses++; pick(firstLeft()); draw(); }
-	else if (key === 'Backspace') {
-		if (picked) { picked = null; if (region.length === 1 && history.length) region = history.pop(); presses = Math.max(0, presses - 1); draw(); }
-		else if (history.length) { region = history.pop(); presses--; draw(); }
-	}
-	else if (key === 'Escape') reset();
+	hint.innerHTML = HINT[mode];
+	modeBtn.textContent = mode === 'ids' ? 'Tab: halve' : 'Tab: ids';
+	termTitle.textContent = mode === 'ids' ? 'try it: click here, then type an id' : 'try it: click here, then use the arrow keys';
 }
 
 term.addEventListener('keydown', e => {
-	if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Backspace', 'Escape'].includes(e.key)) {
+	if (e.ctrlKey || e.metaKey || e.altKey) return;
+	const letter = e.key.length === 1 && /^[a-z]$/i.test(e.key) && mode === 'ids';
+	// Plain Tab switches modes, as in the real tool; Shift+Tab still moves focus out of the demo.
+	if (letter || (e.key === 'Tab' && !e.shiftKey) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Backspace', 'Escape'].includes(e.key)) {
 		e.preventDefault();
-		handle(e.key);
+		handle(letter ? e.key.toLowerCase() : e.key, e.shiftKey);
 	}
 });
 term.addEventListener('click', () => term.focus());
-document.querySelectorAll('[data-key]').forEach(b => b.addEventListener('click', () => { handle(b.dataset.key); }));
+// Tapping an id counts as typing it.
+screen.addEventListener('click', e => {
+	const badge = e.target.closest('[data-id]');
+	if (!badge) return;
+	const id = badge.dataset.id;
+	for (const ch of id.startsWith(typed) ? id.slice(typed.length) : id) handle(ch, false);
+});
+document.querySelectorAll('[data-key]').forEach(b => b.addEventListener('click', () => { handle(b.dataset.key, false); }));
 reset();
 
 // ---------------------------------------------------------------- before / after: a scripted, looping comparison
@@ -755,8 +939,8 @@ reset();
 	const $ = id => document.getElementById(id);
 	const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 	// One row of terminal text, padded to W columns, with a class per column (runs of equal classes share a span).
-	function paint(text, cls) {
-		text = text.padEnd(W);
+	function paint(text, cls, width = W) {
+		text = text.padEnd(width);
 		let out = '', run = '', cur = null;
 		for (let c = 0; c < text.length; c++) {
 			const k = cls(c) || '';
@@ -932,9 +1116,9 @@ reset();
 		}
 	}
 
-	// ------------------------------------------------------------ after: shellcopy, with the same halving as shellcopy.py
+	// ------------------------------------------------------------ after: shellcopy, in its default ids mode
+	const WA = 64;  // columns: the ids push each line right
 	const Aui = { screen: $('a-screen'), clip: $('a-clip'), verdict: $('a-verdict'), keys: $('a-keys') };
-	const LEADING = '([{<"\'`', TRAILING = ')]}>"\'`,;:.!?';
 	const toks = [];
 	OUT.forEach((text, r) => {
 		for (const m of text.matchAll(/\S+/g)) {
@@ -945,27 +1129,22 @@ reset();
 			toks.push([r, s, e]);
 		}
 	});
-	function halve(region, key) {
-		const vertical = key === '↑' || key === '↓';
-		const pos = i => vertical ? toks[i][0] : toks[i][1];
-		const values = [...new Set(region.map(pos))].sort((a, b) => a - b);
-		if (values.length < 2) return region;
-		const middle = values[Math.floor(values.length / 2)];
-		const first = key === '↑' || key === '←';
-		return region.filter(i => (pos(i) < middle) === first);
-	}
+	const everyWord = toks.map((_, i) => i);
+	const IDS = assignIds(everyWord, toks);  // after the first pick they're handed out again over the same words: the same ids
+	const idOf = i => [...IDS].find(([, j]) => j === i)[0];
+	const FIRST = toks.findIndex(([r, s]) => r === T0 && s === 0);  // worker-5d8f7c9b6-hj4tn
+	const LAST = toks.reduce((m, t, i) => (t[0] === T1 ? i : m), -1);  // 51m, the last word on the last worker line
+	const START_ID = idOf(FIRST), END_ID = idOf(LAST);
 	const STATUS = {
-		zoom: n => ` ${n} words · ↑↓ keep the half above/below the line · ←→ left/right of │ · Enter put the cursor here · Tab ids · Backspace undo · Esc quit`,
-		cursor: ' arrows move · Shift+←→ word · Shift+↑↓ 5 lines · Enter start selecting · Space lines · z halve again · Tab ids · Backspace back',
+		start: ' IDS · type an id to start there · Shift+id copies that word · Tab halve instead · Esc quit',
+		end: ' IDS · type an id to end there · Enter copy · Shift+id copy up to there · arrows adjust · Backspace undo · Tab halve',
 		select: ' SELECTING · move to grow · Enter copy · z halve again · Tab ids · Backspace clear selection · Esc quit',
 	};
 	// Keys, grouped with a short note under each group.
 	const GROUPS = [
 		{ keys: ['c', 'y', '⏎'], note: 'run cy' },
-		{ keys: ['↓', '↓'], note: 'halve' },
-		{ keys: ['⏎'], note: 'cursor' },
-		{ keys: ['Space'], note: 'lines' },
-		{ keys: ['↓', '↓'], note: 'grow' },
+		{ keys: [...START_ID], note: 'start' },
+		{ keys: [...END_ID], note: 'end' },
 		{ keys: ['⏎'], note: 'copy' },
 	];
 	const keyEls = [];
@@ -985,7 +1164,7 @@ reset();
 
 	let A;  // after-lane state
 	function aReset() {
-		A = { mode: 'shell', typed: '', region: toks.map((_, i) => i), cur: null, anchor: null, done: null };
+		A = { mode: 'shell', typed: '', sel: null, done: null };
 		keyEls.forEach(k => { k.el.className = 'kc'; k.group.classList.remove('lit'); });
 		Aui.clip.innerHTML = 'empty';
 		Aui.verdict.className = 'verdict'; Aui.verdict.innerHTML = '&nbsp;';
@@ -999,7 +1178,7 @@ reset();
 			if (A.mode === 'done') {
 				const msg = 'copied with wl-copy: ' + A.done;
 				// (a real terminal would wrap this line; cut it here to keep the picture tidy)
-				lines.push(msg.length > W ? msg.slice(0, W - 1) + '…' : msg); meta.push('msg');
+				lines.push(msg.length > WA ? msg.slice(0, WA - 1) + '…' : msg); meta.push('msg');
 				lines.push('$ '); meta.push(null);
 			}
 			const curRow = lines.length - 1, curCol = lines[curRow].length;
@@ -1007,21 +1186,24 @@ reset();
 				if (r === curRow && c === curCol) return 'blink';
 				if (meta[r] === 'msg' && c < 20) return 'faint';
 				return promptCls(text, c);
-			}));
+			}, WA));
 			rows = rows.slice(-ROWS);
 		} else {
-			const inRegion = new Map();
-			if (A.mode === 'zoom') A.region.forEach(i => { const [r, s, e] = toks[i]; for (let c = s; c < e; c++) inRegion.set(r + ':' + c, 1); });
-			const lo = A.anchor ? Math.min(A.anchor[0], A.cur[0]) : -1, hi = A.anchor ? Math.max(A.anchor[0], A.cur[0]) : -1;
-			const split = A.mode === 'zoom' ? splitInfo(A.region, toks) : null;
-			rows = OUT.map((raw, r) => { const text = withBar(raw, r, split); return paint(text, c => {
-				if (A.mode === 'zoom') return ((inRegion.has(r + ':' + c) ? 'on' : 'dim') + splitCls(split, r, c, text[c])).trim();
-				if (A.cur && r === A.cur[0] && c === A.cur[1]) return 'cur';
-				if (r >= lo && r <= hi) return 'rsel';
-				return '';
-			}); });
-			const status = A.mode === 'zoom' ? STATUS.zoom(A.region.length) : (A.anchor ? STATUS.select : STATUS.cursor);
-			rows.push(`<span class="sbar">${esc(status)}</span>`);
+			// 'start' / 'end': ids in front of every word; 'select': the ids are gone and the cursor sits on the end
+			const at = A.mode === 'select' ? null : badgesAt(IDS, toks, '');
+			const word = new Set();
+			toks.forEach(([r, s, e]) => { for (let c = s; c < e; c++) word.add(r + ':' + c); });
+			rows = OUT.map((text, r) => {
+				const cells = cellsWithIds(text, r, at, '', c => {
+					if (A.mode === 'select' && r === A.sel.b[0] && c === A.sel.b[1]) return 'cur';
+					if (A.sel && inRange(r, c, A.sel.a, A.sel.b)) return 'rsel';
+					if (A.mode === 'select') return '';
+					return word.has(r + ':' + c) ? 'on' : 'dim';
+				}).slice(0, WA);
+				while (cells.length < WA) cells.push([' ']);
+				return cellsHtml(cells);
+			});
+			rows.push(`<span class="sbar">${esc(STATUS[A.mode])}</span>`);
 		}
 		Aui.screen.innerHTML = rows.join('\n');
 	}
@@ -1036,23 +1218,23 @@ reset();
 		k.el.className = 'kc lit';
 		await L.wait(hold);
 	}
+	// Type an id, one letter per key (each letter lights its own keycap).
+	async function typeId(L, id, after, hold) {
+		for (let k = 0; k < id.length; k++) await press(L, id[k], k === id.length - 1 ? after : () => {}, k === id.length - 1 ? hold : 60);
+	}
 	async function runAfter(L) {
 		keyIndex = 0;
 		await L.wait(450);
 		await press(L, 'c', () => { A.typed = 'c'; }, 40);
 		await press(L, 'y', () => { A.typed = 'cy'; }, 120);
-		await press(L, '⏎', () => { A.mode = 'zoom'; }, 380);
-		await press(L, '↓', () => { A.region = halve(A.region, '↓'); }, 300);
-		await press(L, '↓', () => { A.region = halve(A.region, '↓'); }, 300);
-		// Enter: the cursor lands on the first word left
-		await press(L, '⏎', () => {
-			const first = A.region.slice().sort((a, b) => toks[a][0] - toks[b][0] || toks[a][1] - toks[b][1])[0];
-			A.mode = 'cursor'; A.cur = [toks[first][0], toks[first][1]];
-		}, 260);
-		await press(L, 'Space', () => { A.anchor = A.cur.slice(); }, 200);
-		await press(L, '↓', () => { A.cur = [A.cur[0] + 1, A.cur[1]]; }, 160);
-		await press(L, '↓', () => { A.cur = [A.cur[0] + 1, A.cur[1]]; }, 230);
-		const text = OUT.slice(Math.min(A.anchor[0], A.cur[0]), Math.max(A.anchor[0], A.cur[0]) + 1).join('\n');
+		// Enter: the ids appear (ids mode is the default); a moment to spot the one in front of the first worker
+		await press(L, '⏎', () => { A.mode = 'start'; }, 700);
+		// the first id starts the selection there, covering that word
+		await typeId(L, START_ID, () => { const [r, s, e] = toks[FIRST]; A.mode = 'end'; A.sel = { a: [r, s], b: [r, e - 1] }; }, 480);
+		// the second ends it at the end of that word
+		await typeId(L, END_ID, () => { const [r, , e] = toks[LAST]; A.mode = 'select'; A.sel.b = [r, e - 1]; }, 330);
+		const [s, e] = [A.sel.a, A.sel.b];
+		const text = [OUT[s[0]].slice(s[1]), ...OUT.slice(s[0] + 1, e[0]), OUT[e[0]].slice(0, e[1] + 1)].map(l => l.trimEnd()).join('\n');
 		await press(L, '⏎', () => {
 			let preview = text.replace(/\n/g, '⏎');
 			if (preview.length > 60) preview = preview.slice(0, 59) + '…';
@@ -1060,8 +1242,9 @@ reset();
 		}, 0);
 		L.done = true; L.show(); L.el.className = 'timer stop-good';
 		Aui.clip.innerHTML = clipHTML(text);
-		Aui.verdict.className = 'verdict ' + (text === TARGET ? 'good' : 'bad');
-		Aui.verdict.innerHTML = `✓ Exactly the 3 lines, first try <span class="why">· ${KEY_COUNT} keys · ${(L.spent / 1000).toFixed(1)}s</span>`;
+		const ok = text === TARGET;
+		Aui.verdict.className = 'verdict ' + (ok ? 'good' : 'bad');
+		Aui.verdict.innerHTML = `${ok ? '✓ Exactly the 3 lines, first try' : '✗ Not the 3 lines'} <span class="why">· ${KEY_COUNT} keys · ${(L.spent / 1000).toFixed(1)}s</span>`;
 	}
 
 	// ------------------------------------------------------------ the loop

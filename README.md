@@ -66,27 +66,27 @@ shellcopy record --check && exec shellcopy record
 
 ## How it works
 
-**1. Halve.** When `cy` opens, every word on screen is in play. Each arrow keeps the half of the remaining words it points at, and the rest dims. A line under a row shows where ↑/↓ would cut, and a │ shows where ←/→ would, so you can see what each arrow keeps before you press it. Empty space never costs a key press, and a screen of 100 near-identical IPs takes only about 7 presses. When one word is left, a cursor lands on it.
+**Ids (the default).** When `cy` opens, every word on screen gets a short id in front of it, easiest to type first. Type one id to start the selection at that word and another to end it there, then press Enter to copy, or fine-tune with the arrows first. With Shift, an id copies right away: `Shift`+id alone copies that word. The ids are inserted in front of their words, pushing the line right while they're shown, so they never cover text.
 
-**2. Point.** The arrows now move the cursor one character at a time. Press Enter to start selecting, move, and press Enter again to copy.
+**Halving (Tab).** Tab switches to halving. Each arrow keeps the half of the remaining words it points at, and the rest dims. A line under a row shows where ↑/↓ would cut, and a │ shows where ←/→ would, so you can see what each arrow keeps before you press it. A screen of 100 near-identical IPs takes about 7 presses. When one word is left, a cursor lands on it.
 
-| Key | While halving | With the cursor |
-|---|---|---|
-| ← → ↑ ↓ | keep that half of the words | move one character or line |
-| Enter | put the cursor on the first word left | first time: start selecting; second time: copy |
-| Tab | switch to **ids mode** (and back) | ids mode on every word on screen |
-| id (in ids mode) | first id: start the selection at that word; second id: end it at that word, then Enter copies | |
-| Shift + id | copy right away: that word, or up to it when a start is picked | (same) |
-| Shift + ← → | | jump a whole word (while selecting forward, to the word's end so it's included) |
-| Shift + ↑ ↓ | | jump 5 lines; PgUp/PgDn a page; Home/End line start and end |
-| Space | | select whole lines |
-| z | | halve again from the whole screen (keeps your selection) |
-| Backspace | undo the last halving; at the start, quit | clear the selection; with nothing selected, back to halving |
-| Esc | quit | quit |
+**The cursor.** Once a word is picked, the arrows move the cursor one character at a time. Press Enter to start selecting, move, and press Enter again to copy.
 
-**Ids mode.** Press Tab to put a short id in front of every word. Type one to start the selection there, and another to end it there, then press Enter to copy, or use the arrows to fine-tune. With Shift, an id copies right away. Tab switches back to halving. To start in ids mode every time, run `cy --ids` or set `SHELLCOPY_MODE=ids`.
+`cy` remembers whichever mode you last switched to with Tab (in `~/.local/state/shellcopy/mode`) and opens in it next time. `cy --ids` or `cy --halve`, or `SHELLCOPY_MODE=ids|halve`, picks one for a run.
 
-Ids are inserted in front of their words, pushing the line right while they're shown, so they never cover text.
+| Key | Ids | Halving | With the cursor |
+|---|---|---|---|
+| id | first: start at that word; second: end there, then Enter copies | | |
+| Shift + id | copy right away: that word, or up to it when a start is picked | | (same, in ids mode) |
+| ← → ↑ ↓ | | keep that half of the words | move one character or line |
+| Enter | | put the cursor on the first word left | first time: start selecting; second time: copy |
+| Tab | switch to halving | switch to ids | toggle ids on every word on screen |
+| Shift + ← → | | | jump a whole word (while selecting forward, to the word's end so it's included) |
+| Shift + ↑ ↓ | | | jump 5 lines; PgUp/PgDn a page; Home/End line start and end |
+| Space | | | select whole lines |
+| z | | | halve again from the whole screen (keeps your selection) |
+| Backspace | clear the start; with none, quit | undo the last halving; at the start, quit | clear the selection; with nothing selected, back to picking |
+| Esc | quit | quit | quit |
 
 ## Where the text comes from
 

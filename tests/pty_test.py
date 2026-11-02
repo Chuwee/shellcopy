@@ -41,10 +41,15 @@ def run():
 	send(b'', 4)  # shell startup, including the switch into the recorded shell
 	send(b'echo "LOG=[$SHELLCOPY_LOG]"\n', 1.5)
 	send(b'clear; echo alpha beta gamma\n', 1.5)
-	send(b'x=$(cy --print); echo "GOT=[$x]"\n', 3)
-	for key in (b'\r', b'\r', b'\x1b[1;2C', b'\r'):  # cursor on the first word, start selecting, Shift+right, copy
+	# Halving: Enter puts the cursor on the first word, Enter starts selecting, Shift+right takes the word, Enter copies.
+	send(b'x=$(cy --halve --print); echo "GOT=[$x]"\n', 3)
+	for key in (b'\r', b'\r', b'\x1b[1;2C', b'\r'):
 		send(key, 0.8)
 	send(b'', 2)
+	# Ids (the default): the word nearest the bottom (gamma) always gets the first id, a; Shift+a copies it.
+	send(b'clear; echo alpha beta gamma\n', 1.5)
+	send(b'y=$(cy --ids --print); echo "IDS=[$y]"\n', 3)
+	send(b'A', 2)
 	send(b'exit\n', 2)
 	text = re.sub(rb'\x1b(\][^\x07\x1b]*(\x07|\x1b\\)|\[[0-9;?]*[ -/]*[@-~]|[()][A-Z0-9]|[=>])', b'', bytes(output))
 	return text.decode(errors='replace').replace('\r', '')
@@ -53,11 +58,15 @@ def run():
 text = run()
 log = re.findall(r'LOG=\[([^\]\n]*)\]', text)
 got = re.findall(r'GOT=\[([^\]\n]*)\]', text)
-print(f'recording log: {log}\ncopied: {got}')
+ids = re.findall(r'IDS=\[([^\]\n]*)\]', text)
+print(f'recording log: {log}\ncopied by halving: {got}\ncopied by id: {ids}')
 if not log or not log[-1]:
 	print(text[-3000:])
 	sys.exit('FAIL: the terminal was not recorded')
 if 'alpha' not in got:
 	print(text[-3000:])
-	sys.exit('FAIL: cy --print did not return "alpha"')
+	sys.exit('FAIL: cy --halve --print did not return "alpha"')
+if 'gamma' not in ids:
+	print(text[-3000:])
+	sys.exit('FAIL: cy --ids --print with Shift+a did not return "gamma"')
 print('PASS')

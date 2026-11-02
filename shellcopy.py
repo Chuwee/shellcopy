@@ -99,6 +99,7 @@ class Picker:
 		self.zoom_from_cursor = False        # Backspace with no history goes back to the cursor instead of quitting
 		self.show_ids = ids_mode            # ids mode: pick the start and end of the selection by typing ids
 		self.ids_start = None                # the word the first id picked, while waiting for the second
+		self.chosen_mode = None              # 'ids' or 'halve' when switched with Tab, to remember for next time
 		self.ids = {}
 		self.typed = ''
 		self.row = len(lines) - 1
@@ -276,7 +277,7 @@ class Picker:
 			screen.addstr(self.row - self.top, self.col - self.left, line[self.col] if self.col < len(line) else ' ', curses.color_pair(3) | curses.A_BOLD)
 
 		if self.mode == 'zoom' and self.show_ids and self.anchor is None:
-			status = ' IDS · type an id to start there · Shift+id copies that word · Tab halve instead · Esc quit'
+			status = ' IDS · type an id to start there · Shift+id copies that word · Tab halve instead · Backspace/Esc quit'
 		elif self.mode == 'zoom' and self.show_ids:
 			status = ' IDS · type an id to end there · Enter copy · Shift+id copy up to there · arrows adjust · Backspace undo · Tab halve'
 		elif self.mode == 'zoom':
@@ -392,18 +393,21 @@ class Picker:
 						self.typed = self.typed[:-1]
 					elif self.ids_start is not None:  # undo the start picked by id
 						self.anchor = self.ids_start = None
-					elif self.show_ids:
+					elif self.show_ids and (self.history or self.zoom_from_cursor):  # back to where Tab came from
 						self.show_ids = False
 						if self.zoom_from_cursor and not self.history:
 							self.mode = 'cursor'
+					elif self.show_ids:  # opened in ids mode: nothing to go back to
+						return None
 					elif self.history:
 						self.region = self.history.pop()
 					elif self.zoom_from_cursor:
 						self.mode = 'cursor'
 					else:
 						return None
-				elif key == '\t':  # switch between halving and ids
+				elif key == '\t':  # switch between halving and ids (remembered for next time)
 					self.show_ids, self.typed = not self.show_ids, ''
+					self.chosen_mode = 'ids' if self.show_ids else 'halve'
 					self.ids_start = None
 				elif self.show_ids:
 					if isinstance(key, str) and key.isalpha() and key.isascii():
@@ -516,7 +520,17 @@ def read_log(path):
 	lines = [line.rstrip() for line in history + screen.display]
 	while lines and not lines[-1].strip():
 		lines.pop()
-	return lines[:-1]  # drop the line where shellcopy itself was typed
+	return drop_typed_line(lines, columns)
+
+
+def drop_typed_line(lines, columns):
+	"""Leave out the line where cy itself was typed: the last row, plus the rows above it that it wrapped from
+	(a long prompt and command fill whole rows before wrapping, so a full-width row just above belongs to it)."""
+	end = len(lines) - 1
+	start = end
+	while start > 0 and end - start < 20 and len(lines[start - 1]) >= columns - 1:
+		start -= 1
+	return lines[:max(start, 0)]
 
 
 def parent_shell():
@@ -854,6 +868,28 @@ def setup_main(argv):
 	return 0
 
 
+MODE_FILE = os.path.join(os.environ.get('XDG_STATE_HOME') or os.path.expanduser('~/.local/state'), 'shellcopy', 'mode')
+
+
+def remembered_mode():
+	"""The mode last switched to with Tab ('ids' or 'halve'), or None."""
+	try:
+		with open(MODE_FILE) as f:
+			mode = f.read().strip()
+	except OSError:
+		return None
+	return mode if mode in ('ids', 'halve') else None
+
+
+def remember_mode(mode):
+	try:
+		os.makedirs(os.path.dirname(MODE_FILE), exist_ok=True)
+		with open(MODE_FILE, 'w') as f:
+			f.write(mode + '\n')
+	except OSError:
+		pass  # not worth failing a copy over
+
+
 def main():
 	if sys.argv[1:2] == ['init']:
 		return init_main(sys.argv[2:])
@@ -862,10 +898,13 @@ def main():
 	if sys.argv[1:2] == ['record']:
 		return record_main(sys.argv[2:])
 	parser = argparse.ArgumentParser(prog='shellcopy', description=__doc__,
-		epilog='subcommands: `shellcopy setup` adds the shell hook to your rc files; `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the hook (see --help on each)')
+		epilog='Without --ids or --halve (or SHELLCOPY_MODE=ids|halve), cy starts in the mode you last switched to with Tab, ids at first. '
+		'Subcommands: `shellcopy setup` adds the shell hook to your rc files; `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the hook (see --help on each)')
 	parser.add_argument('--version', action='version', version=f'shellcopy {__version__}')
 	parser.add_argument('--print', action='store_true', help='print the selection to stdout instead of copying it')
-	parser.add_argument('--ids', action='store_true', help='start in ids mode (also SHELLCOPY_MODE=ids); Tab switches modes')
+	mode = parser.add_mutually_exclusive_group()
+	mode.add_argument('--ids', action='store_const', const='ids', dest='mode', help='start in ids mode')
+	mode.add_argument('--halve', action='store_const', const='halve', dest='mode', help='start by halving with the arrows')
 	parser.add_argument('--log', help='a `script` recording of this terminal to pick from')
 	args = parser.parse_args()
 	try:
@@ -879,8 +918,18 @@ def main():
 			result_fd = os.dup(1)
 			os.dup2(os.open('/dev/tty', os.O_RDWR), 1)
 		os.environ.setdefault('ESCDELAY', '25')
-		ids_mode = args.ids or os.environ.get('SHELLCOPY_MODE') == 'ids'
-		selection = curses.wrapper(lambda screen: Picker(lines, tokens, screen.getmaxyx()[0], ids_mode).run(screen))
+		start_mode = args.mode or os.environ.get('SHELLCOPY_MODE') or remembered_mode() or 'ids'
+		picker = None
+
+		def run(screen):
+			nonlocal picker
+			picker = Picker(lines, tokens, screen.getmaxyx()[0], ids_mode=start_mode != 'halve')
+			return picker.run(screen)
+		try:
+			selection = curses.wrapper(run)
+		finally:
+			if picker is not None and picker.chosen_mode:
+				remember_mode(picker.chosen_mode)
 		if selection is None:
 			return 1
 		if args.print:
