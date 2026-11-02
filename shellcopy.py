@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -495,6 +495,21 @@ def copy(text):
 
 # ---------------------------------------------------------------- main
 
+def terminal_size():
+	"""The terminal's size, even when stdout is a pipe, as in x=$(cy --print). (shutil's guess falls back to 80x24
+	then, and replaying a wider terminal's recording at 80 columns wraps its lines in the wrong places.)"""
+	for fd in (2, 0, 1):
+		try:
+			return os.get_terminal_size(fd)
+		except OSError:
+			pass
+	try:
+		with open('/dev/tty') as tty:
+			return os.get_terminal_size(tty.fileno())
+	except OSError:
+		return shutil.get_terminal_size()
+
+
 def read_log(path):
 	"""Rebuild what the terminal shows, scrollback included, from the tail of a `script` recording."""
 	try:
@@ -513,7 +528,7 @@ def read_log(path):
 	data = ALT_SCREEN.sub(b'', data.replace(b'\x00', b''))
 	if data.startswith(b'Script started on'):
 		data = data.split(b'\n', 1)[-1]  # the recorder's own header line
-	columns, rows = shutil.get_terminal_size()
+	columns, rows = terminal_size()
 	screen = pyte.HistoryScreen(columns, rows, history=5000)
 	pyte.ByteStream(screen).feed(data)
 	history = [''.join(line[x].data for x in range(columns)) for line in screen.history.top]
