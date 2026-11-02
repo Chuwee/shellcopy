@@ -455,8 +455,24 @@ class Picker:
 
 # ---------------------------------------------------------------- clipboard
 
+def on_wsl():
+	"""Running in Windows Subsystem for Linux."""
+	if os.environ.get('WSL_DISTRO_NAME'):
+		return True
+	try:
+		with open('/proc/version') as f:
+			return 'microsoft' in f.read().lower()
+	except OSError:
+		return False
+
+
 def copy(text):
 	"""Copy to the system clipboard; returns the name of the tool used."""
+	if on_wsl() and shutil.which('clip.exe'):
+		# Straight into the Windows clipboard, not WSLg's Linux one (whose syncing to Windows is unreliable).
+		# clip.exe misreads UTF-8 but reads UTF-16 correctly.
+		subprocess.run(['clip.exe'], input=text.encode('utf-16le'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+		return 'clip.exe'
 	candidates = []
 	if os.environ.get('WAYLAND_DISPLAY'):
 		candidates.append(['wl-copy'])

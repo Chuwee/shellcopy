@@ -26,3 +26,21 @@ jobs:
         run: tail -n 3 ~/.bashrc ~/.zshrc 2>/dev/null || true
       - name: Record a terminal and copy from it
         run: python3 tests/pty_test.py ${{ matrix.shell }}
+
+  wsl:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Vampire/setup-wsl@v5
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: python3
+      - name: Install
+        run: SHELL=/bin/bash ./install.sh
+      - name: Record a terminal and copy from it
+        run: python3 tests/pty_test.py bash
+      - name: Copy into the Windows clipboard
+        run: python3 tests/wsl_clipboard_test.py
