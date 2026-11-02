@@ -10,17 +10,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-	--bg: #f7f7f4;
+	--bg: #f6f8fa;
 	--surface: #ffffff;
-	--surface-2: #fbfbf9;
-	--text: #1c1d1f;
-	--muted: #5d6066;
-	--border: #e2e2dc;
-	--accent: #0f8a5f;
-	--accent-soft: #e3f3ec;
-	--bad: #c8323a;
-	--bad-soft: #fbe9ea;
-	--term-bg: #16181d;
+	--surface-2: #f9fafb;
+	--text: #0f172a;
+	--muted: #556070;
+	--border: #e3e7ed;
+	--accent: #047857;
+	--accent-hero: #059669;
+	--accent-soft: #e6f6ef;
+	--bad: #c2323b;
+	--bad-soft: #fdecee;
+	--glow: radial-gradient(1100px 520px at 50% -140px, rgba(16, 185, 129, .13), transparent 70%);
+	--term-bg: #1a1d24;
 	--term-text: #d7dae0;
 	--term-dim: #4a4f59;
 	--term-prompt: #6fd3a5;
@@ -29,8 +31,9 @@
 	--term-status: #5ec8d8;
 	--split: #e06cd5;
 	--term-mouse-sel: #3d64b8;
-	--code-bg: #efefea;
-	--shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px -18px rgba(0,0,0,.25);
+	--code-bg: #eef1f5;
+	--term-border: rgba(15, 23, 42, .12);
+	--shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 30px -16px rgba(15,23,42,.22);
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
@@ -41,6 +44,9 @@
 		--muted: #9a9ea6;
 		--border: #2a2d33;
 		--accent: #5fd3a0;
+		--accent-hero: #5fd3a0;
+		--glow: none;
+		--term-border: #262a31;
 		--accent-soft: #15302a;
 		--bad: #ff7b80;
 		--bad-soft: #3a1b1e;
@@ -57,6 +63,9 @@
 	--muted: #9a9ea6;
 	--border: #2a2d33;
 	--accent: #5fd3a0;
+	--accent-hero: #5fd3a0;
+	--glow: none;
+	--term-border: #262a31;
 	--accent-soft: #15302a;
 	--bad: #ff7b80;
 	--bad-soft: #3a1b1e;
@@ -68,7 +77,7 @@
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
 	margin: 0;
-	background: var(--bg);
+	background: var(--glow) no-repeat, var(--bg);
 	color: var(--text);
 	font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 	overflow-x: hidden;
@@ -94,7 +103,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 
 .hero { padding: 44px 0 8px; text-align: center; }
 .hero h1 { font-size: clamp(34px, 6.2vw, 58px); line-height: 1.06; letter-spacing: -0.025em; margin: 0 0 18px; }
-.hero h1 em { font-style: normal; color: var(--accent); }
+.hero h1 em { font-style: normal; color: var(--accent-hero); }
 .hero p.lead { font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 620px; margin: 0 auto 26px; }
 .hero p.lead code { font-size: .85em; }
 .hero-install { max-width: 600px; margin: 0 auto 18px; text-align: left; }
@@ -135,7 +144,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .timer.stop-bad { color: var(--bad); }
 .timer.stop-good { color: var(--accent); }
 
-.cterm { background: var(--term-bg); color: var(--term-text); border-radius: 10px; overflow: hidden; border: 1px solid #262a31; }
+.cterm { background: var(--term-bg); color: var(--term-text); border-radius: 10px; overflow: hidden; border: 1px solid var(--term-border); }
 .cterm .term-bar { padding: 9px 12px; }
 .cterm-body { container-type: inline-size; position: relative; }
 .cscreen {
@@ -216,9 +225,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .demo { margin: 0 auto 8px; max-width: 860px; }
 .term {
 	background: var(--term-bg); color: var(--term-text); border-radius: 12px; overflow: hidden;
-	box-shadow: 0 20px 50px -20px rgba(0,0,0,.45); border: 1px solid #262a31; outline: none;
+	box-shadow: var(--shadow); border: 1px solid var(--term-border); outline: none;
 }
-.term:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 20px 50px -20px rgba(0,0,0,.45); }
+.term:focus-visible { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
 .term-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: #1f2229; }
 .term-bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a3f48; display: block; flex: none; }
 .term-bar .title { margin-left: 8px; font-size: 12px; color: #8a909b; font-family: "JetBrains Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
