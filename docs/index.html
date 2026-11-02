@@ -451,9 +451,9 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 				<p>When one word is left, a cursor lands on it. Move by character, word or line, press Enter to start selecting and Enter again to copy.</p>
 			</div>
 			<div class="card">
-				<span class="num">tab · jump</span>
-				<h3>Or jump by id</h3>
-				<p>Press Tab to show short ids next to the words that are left. Type one to jump there, or hold Shift while typing it to copy that word right away.</p>
+				<span class="num">tab · ids</span>
+				<h3>Or pick both ends by id</h3>
+				<p>Press Tab for ids mode: short ids appear in front of the words. Type one to start the selection there and another to end it there, then press Enter. Shift+id copies right away. Tab switches back, and <code>cy --ids</code> starts in this mode.</p>
 			</div>
 		</div>
 	</div>
@@ -553,8 +553,9 @@ shellcopy record --check && exec shellcopy record</pre></div>
 			<tbody>
 				<tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>keep that half of the words</td><td>move one character or line</td></tr>
 				<tr><td><kbd>Enter</kbd></td><td>put the cursor on the first word left</td><td>first press: start selecting; second press: copy</td></tr>
-				<tr><td><kbd>Tab</kbd></td><td>show ids on the words left</td><td>show ids on every word on screen</td></tr>
-				<tr><td><kbd>Shift</kbd> + id</td><td colspan="2">copy that word right away</td></tr>
+				<tr><td><kbd>Tab</kbd></td><td>switch to ids mode, and back</td><td>ids mode on every word on screen</td></tr>
+				<tr><td>id</td><td colspan="2">in ids mode, the first id starts the selection at that word and the second ends it there; Enter copies</td></tr>
+				<tr><td><kbd>Shift</kbd> + id</td><td colspan="2">copy right away: that word, or up to it once a start is picked</td></tr>
 				<tr><td><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td></td><td>jump a whole word</td></tr>
 				<tr><td><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></td><td></td><td>jump 5 lines (<kbd>PgUp</kbd>/<kbd>PgDn</kbd> a page, <kbd>Home</kbd>/<kbd>End</kbd> line start and end)</td></tr>
 				<tr><td><kbd>Space</kbd></td><td></td><td>select whole lines</td></tr>

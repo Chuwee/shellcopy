@@ -74,14 +74,17 @@ shellcopy record --check && exec shellcopy record
 |---|---|---|
 | ← → ↑ ↓ | keep that half of the words | move one character or line |
 | Enter | put the cursor on the first word left | first time: start selecting; second time: copy |
-| Tab | show ids on the words left; type one to jump there | show ids on every word on screen |
-| Shift + id | copy that word right away | (same) |
+| Tab | switch to **ids mode** (and back) | ids mode on every word on screen |
+| id (in ids mode) | first id: start the selection at that word; second id: end it at that word, then Enter copies | |
+| Shift + id | copy right away: that word, or up to it when a start is picked | (same) |
 | Shift + ← → | | jump a whole word (while selecting forward, to the word's end so it's included) |
 | Shift + ↑ ↓ | | jump 5 lines; PgUp/PgDn a page; Home/End line start and end |
 | Space | | select whole lines |
 | z | | halve again from the whole screen (keeps your selection) |
 | Backspace | undo the last halving; at the start, quit | clear the selection; with nothing selected, back to halving |
 | Esc | quit | quit |
+
+**Ids mode.** Press Tab to put a short id in front of every word. Type one to start the selection there, and another to end it there, then press Enter to copy, or use the arrows to fine-tune. With Shift, an id copies right away. Tab switches back to halving. To start in ids mode every time, run `cy --ids` or set `SHELLCOPY_MODE=ids`.
 
 Ids are inserted in front of their words, pushing the line right while they're shown, so they never cover text.
 

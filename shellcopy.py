@@ -76,7 +76,7 @@ class Picker:
 	Backspace always goes one step back.
 	"""
 
-	def __init__(self, lines, tokens, view_height):
+	def __init__(self, lines, tokens, view_height, ids_mode=False):
 		self.lines = lines
 		self.tokens = tokens
 		self.view = max(1, view_height - 1)
@@ -86,7 +86,8 @@ class Picker:
 		self.region = self.visible_tokens()  # words still in play while halving
 		self.history = []                    # earlier regions, for Backspace
 		self.zoom_from_cursor = False        # Backspace with no history goes back to the cursor instead of quitting
-		self.show_ids = False
+		self.show_ids = ids_mode            # ids mode: pick the start and end of the selection by typing ids
+		self.ids_start = None                # the word the first id picked, while waiting for the second
 		self.ids = {}
 		self.typed = ''
 		self.row = len(lines) - 1
@@ -132,6 +133,7 @@ class Picker:
 		self.history = []
 		self.zoom_from_cursor = True
 		self.show_ids = show_ids
+		self.ids_start = None
 		self.typed = ''
 
 	# ------------------------------------------------------------ cursor movement
@@ -262,8 +264,10 @@ class Picker:
 			line = self.lines[self.row]
 			screen.addstr(self.row - self.top, self.col - self.left, line[self.col] if self.col < len(line) else ' ', curses.color_pair(3) | curses.A_BOLD)
 
-		if self.mode == 'zoom' and self.show_ids:
-			status = ' type an id to jump there · Shift+id copies that word · Backspace hide ids · Esc quit'
+		if self.mode == 'zoom' and self.show_ids and self.anchor is None:
+			status = ' IDS · type an id to start there · Shift+id copies that word · Tab halve instead · Esc quit'
+		elif self.mode == 'zoom' and self.show_ids:
+			status = ' IDS · type an id to end there · Enter copy · Shift+id copy up to there · arrows adjust · Backspace undo · Tab halve'
 		elif self.mode == 'zoom':
 			status = f' {len(self.region)} words · ↑↓ keep the half above/below the line · ←→ left/right of │ · Enter put the cursor here · Tab ids · Backspace undo · Esc quit'
 		elif self.anchor is not None:
@@ -311,22 +315,36 @@ class Picker:
 	# ------------------------------------------------------------ input
 
 	def pick_id(self, key):
-		"""Type an id; returns the selection when Shift+id asks to copy right away."""
+		"""Type an id. The first one starts the selection at that word (covering it), the second ends it at that
+		word, after which Enter copies or the arrows adjust. Shift+id copies right away. Returns the selection
+		when it's time to copy."""
 		instant = key.isupper()
 		self.typed += key.lower()
-		if self.typed in self.ids:
-			index = self.ids[self.typed]
-			if instant and self.anchor is None:
-				row, start, end = self.tokens[index]
-				self.anchor = (row, start)
-				self.move_to(row, end - 1)
-				return self.selection()
-			self.enter_cursor(index)
+		if self.typed not in self.ids:
+			if not any(label.startswith(self.typed) for label in self.ids):
+				self.typed = ''
+			return None
+		index = self.ids[self.typed]
+		self.typed = ''
+		row, start, end = self.tokens[index]
+		if self.anchor is None:
+			self.anchor = (row, start)
+			self.move_to(row, end - 1)
 			if instant:
 				return self.selection()
-		elif not any(label.startswith(self.typed) for label in self.ids):
-			self.typed = ''
-		return None
+			self.ids_start = index
+			self.region, self.history = self.visible_tokens(), []  # the end can be anywhere on screen
+			return None
+		if self.ids_start is not None:
+			# Whichever of the two words comes first is the start; the selection runs to the other's end.
+			first, last = sorted((self.ids_start, index), key=lambda i: self.tokens[i][:2])
+			self.anchor = tuple(self.tokens[first][:2])
+			self.move_to(self.tokens[last][0], self.tokens[last][2] - 1)
+			self.ids_start = None
+			self.mode, self.show_ids = 'cursor', False
+		else:
+			self.enter_cursor(index)  # a selection started some other way: just move its end here
+		return self.selection() if instant else None
 
 	def run(self, screen):
 		curses.curs_set(0)
@@ -361,6 +379,8 @@ class Picker:
 				if backspace:
 					if self.typed:
 						self.typed = self.typed[:-1]
+					elif self.ids_start is not None:  # undo the start picked by id
+						self.anchor = self.ids_start = None
 					elif self.show_ids:
 						self.show_ids = False
 						if self.zoom_from_cursor and not self.history:
@@ -371,17 +391,28 @@ class Picker:
 						self.mode = 'cursor'
 					else:
 						return None
+				elif key == '\t':  # switch between halving and ids
+					self.show_ids, self.typed = not self.show_ids, ''
+					self.ids_start = None
 				elif self.show_ids:
 					if isinstance(key, str) and key.isalpha() and key.isascii():
 						copied = self.pick_id(key)
 						if copied is not None:
 							return copied
+					elif key in ('\n', '\r', curses.KEY_ENTER) and self.anchor is not None:
+						return self.selection()
+					elif key in arrows or key in moves:
+						if self.anchor is not None:  # fine-tune the selection by hand
+							self.ids_start = None
+							self.mode, self.show_ids = 'cursor', False
+							moves[key]()
+						elif key in arrows:  # nothing picked yet: halve instead
+							self.show_ids = False
+							self.halve(key)
 				elif key in arrows:
 					self.halve(key)
 				elif key in ('\n', '\r', curses.KEY_ENTER):
 					self.enter_cursor(min(self.region, key=lambda i: self.tokens[i][:2]))
-				elif key == '\t':
-					self.show_ids = True
 				elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE):
 					step = -self.view if key == curses.KEY_PPAGE else self.view
 					self.top = max(0, min(self.top + step, max(0, len(self.lines) - self.view)))
@@ -807,6 +838,7 @@ def main():
 		epilog='subcommands: `shellcopy setup` adds the shell hook to your rc files; `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the hook (see --help on each)')
 	parser.add_argument('--version', action='version', version=f'shellcopy {__version__}')
 	parser.add_argument('--print', action='store_true', help='print the selection to stdout instead of copying it')
+	parser.add_argument('--ids', action='store_true', help='start in ids mode (also SHELLCOPY_MODE=ids); Tab switches modes')
 	parser.add_argument('--log', help='a `script` recording of this terminal to pick from')
 	args = parser.parse_args()
 	try:
@@ -820,7 +852,8 @@ def main():
 			result_fd = os.dup(1)
 			os.dup2(os.open('/dev/tty', os.O_RDWR), 1)
 		os.environ.setdefault('ESCDELAY', '25')
-		selection = curses.wrapper(lambda screen: Picker(lines, tokens, screen.getmaxyx()[0]).run(screen))
+		ids_mode = args.ids or os.environ.get('SHELLCOPY_MODE') == 'ids'
+		selection = curses.wrapper(lambda screen: Picker(lines, tokens, screen.getmaxyx()[0], ids_mode).run(screen))
 		if selection is None:
 			return 1
 		if args.print:
