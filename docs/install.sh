@@ -5,7 +5,7 @@
 #   curl -fsSL https://chuwee.github.io/shellcopy/install.sh | sh -s -- --no-rc     # don't touch rc files
 #
 # Downloads the latest release into ~/.local/share/shellcopy (or $SHELLCOPY_DIR) and runs its install.sh, which
-# creates a private virtualenv with pyte, links `shellcopy` and `shcp` into ~/.local/bin, and adds the shell hook
+# creates a private virtualenv with pyte, links `shellcopy` and `cy` into ~/.local/bin, and adds the shell hook
 # to ~/.bashrc, ~/.zshrc and fish's conf.d. No sudo. Run it again to update.
 #
 # Everything is inside main(), so a partly downloaded script does nothing.

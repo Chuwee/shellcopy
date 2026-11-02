@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install shellcopy: a private virtualenv with pyte, `shellcopy` and `shcp` in ~/.local/bin, and the shell hook
+# Install shellcopy: a private virtualenv with pyte, `shellcopy` and `cy` in ~/.local/bin, and the shell hook
 # for each of bash, zsh and fish that's installed. Other shells get printed instructions.
 # Usage: ./install.sh [--no-rc]
 set -euo pipefail
@@ -22,10 +22,12 @@ chmod +x "$here/bin/shellcopy"
 # bashcopy is the old name of this tool
 [ -L "$bin/bashcopy" ] && rm -f "$bin/bashcopy"
 ln -sf "$here/bin/shellcopy" "$bin/shellcopy"
-ln -sf "$here/bin/shellcopy" "$bin/shcp"
-# bcp was the old short name
-[ "$(readlink "$bin/bcp" 2>/dev/null)" = "$here/bin/shellcopy" ] && rm -f "$bin/bcp"
-echo "› linked shellcopy and shcp into $bin"
+ln -sf "$here/bin/shellcopy" "$bin/cy"
+# bcp and shcp were earlier short names
+for old in bcp shcp; do
+	[ "$(readlink "$bin/$old" 2>/dev/null)" = "$here/bin/shellcopy" ] && rm -f "$bin/$old"
+done
+echo "› linked shellcopy and cy into $bin"
 case ":$PATH:" in *":$bin:"*) ;; *) echo "  (add $bin to your PATH to use them outside bash, zsh and fish)" ;; esac
 
 if [ "${1:-}" != '--no-rc' ]; then
@@ -38,7 +40,7 @@ if [ "${1:-}" != '--no-rc' ]; then
 			cat "$rc.shellcopy-tmp" >"$rc"
 			rm -f "$rc.shellcopy-tmp"
 		fi
-		printf '\n# shellcopy\n%s  # copy terminal output with `shcp`; remove to uninstall\n' "$("$here/bin/shellcopy" init --rc-line "$2")" >>"$rc"
+		printf '\n# shellcopy\n%s  # copy terminal output with `cy`; remove to uninstall\n' "$("$here/bin/shellcopy" init --rc-line "$2")" >>"$rc"
 		echo "› added the shell hook to $rc"
 	}
 	command -v bash >/dev/null && add_posix "$HOME/.bashrc" bash
@@ -47,15 +49,15 @@ if [ "${1:-}" != '--no-rc' ]; then
 		conf="${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/shellcopy.fish"
 		rm -f "$(dirname "$conf")/bashcopy.fish"  # the old name
 		mkdir -p "$(dirname "$conf")"
-		printf '# shellcopy: copy terminal output with `shcp`; delete this file to uninstall\n%s\n' "$("$here/bin/shellcopy" init --rc-line fish)" >"$conf"
+		printf '# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n%s\n' "$("$here/bin/shellcopy" init --rc-line fish)" >"$conf"
 		echo "› added the shell hook to $conf"
 	fi
 	case "$(basename "${SHELL:-bash}")" in
 		bash | zsh | fish) ;;
 		*)
 			echo
-			echo "› for $(basename "$SHELL"), shcp already works as a command. To record terminals so plain"
-			echo '  `shcp` can pick from the screen, add the equivalent of this to its startup file:'
+			echo "› for $(basename "$SHELL"), cy already works as a command. To record terminals so plain"
+			echo '  `cy` can pick from the screen, add the equivalent of this to its startup file:'
 			echo '    shellcopy record --check && exec shellcopy record'
 			echo '  (bash, zsh and fish get a fuller hook from `shellcopy init`)'
 			;;
@@ -64,5 +66,5 @@ fi
 
 echo
 echo 'done. open a new terminal (or source your rc file), then run any command and:'
-echo '  shcp                 # halve with the arrows, Enter to start selecting, Enter to copy'
-echo '  ls -la | shcp        # or pick from a piped output'
+echo '  cy                 # halve with the arrows, Enter to start selecting, Enter to copy'
+echo '  ls -la | cy        # or pick from a piped output'

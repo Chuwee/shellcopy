@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>shellcopy</title>
-<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type shcp, halve the screen with a few arrow presses, press Enter to copy.">
+<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type cy, halve the screen with a few arrow presses, press Enter to copy.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -189,7 +189,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 	<div class="hero">
 		<h1>Copy from your terminal.<br><em>Leave the mouse alone.</em></h1>
-		<p class="lead">Type <code>shcp</code>, narrow down to what you want with a few arrow presses, and press Enter to copy. Works in any shell.</p>
+		<p class="lead">Type <code>cy</code>, narrow down to what you want with a few arrow presses, and press Enter to copy. Works in any shell.</p>
 		<div class="cta">
 			<a class="btn primary" href="#install">Install</a>
 			<a class="btn" href="https://github.com/Chuwee/shellcopy">View on GitHub</a>
@@ -251,11 +251,11 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 		<div class="grid">
 			<div class="card">
 				<h3>Any shell</h3>
-				<p><code>shcp</code> is a plain command that works in bash, zsh, fish, ksh, dash, nushell and others. bash, zsh and fish also get a small optional hook.</p>
+				<p><code>cy</code> is a plain command that works in bash, zsh, fish, ksh, dash, nushell and others. bash, zsh and fish also get a small optional hook.</p>
 			</div>
 			<div class="card">
 				<h3>Scrollback included</h3>
-				<p>The hook records what the terminal prints, so <code>shcp</code> can pick from anything still in the scrollback, not only what's visible. Inside tmux it reads tmux's screen directly.</p>
+				<p>The hook records what the terminal prints, so <code>cy</code> can pick from anything still in the scrollback, not only what's visible. Inside tmux it reads tmux's screen directly.</p>
 			</div>
 			<div class="card">
 				<h3>Private by design</h3>
@@ -263,7 +263,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			</div>
 			<div class="card">
 				<h3>Pipes too</h3>
-				<p><code>cmd | shcp</code> picks from a command's output, and <code>x=$(cmd | shcp --print)</code> puts the selection in a variable.</p>
+				<p><code>cmd | cy</code> picks from a command's output, and <code>x=$(cmd | cy --print)</code> puts the selection in a variable.</p>
 			</div>
 			<div class="card">
 				<h3>Your clipboard</h3>
@@ -280,7 +280,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <section id="install">
 	<div class="wrap">
 		<h2>Install</h2>
-		<p class="sub">One line with the script. With Homebrew or apt, add the hook line below afterwards so plain <code>shcp</code> can pick from what's on screen.</p>
+		<p class="sub">One line with the script. With Homebrew or apt, add the hook line below afterwards so plain <code>cy</code> can pick from what's on screen.</p>
 
 		<div class="tabs" role="tablist">
 			<button role="tab" aria-selected="true" data-tab="script">Script</button>
@@ -308,7 +308,7 @@ cd shellcopy && ./install.sh</pre></div>
 		</div>
 
 		<h3 style="margin:28px 0 6px;font-size:18px">Add the hook</h3>
-		<p style="color:var(--muted);margin:0 0 14px;font-size:15px">Without the hook, <code>cmd | shcp</code> still works, and so does plain <code>shcp</code> inside tmux. With it, plain <code>shcp</code> works in any terminal.</p>
+		<p style="color:var(--muted);margin:0 0 14px;font-size:15px">Without the hook, <code>cmd | cy</code> still works, and so does plain <code>cy</code> inside tmux. With it, plain <code>cy</code> works in any terminal.</p>
 		<div class="codeblock"><pre><span class="c"># ~/.bashrc  (in ~/.zshrc, use: shellcopy init zsh)</span>
 command -v shellcopy >/dev/null && eval "$(shellcopy init bash)" && shellcopy record</pre></div>
 		<div class="codeblock"><pre><span class="c"># ~/.config/fish/conf.d/shellcopy.fish</span>
@@ -361,14 +361,14 @@ const OUTPUT = [
 	{ text: 'a19371c Point the Homebrew formula at the v0.1.0 release' },
 	{ text: '56edb33 Rename to shellcopy, support any shell' },
 	{ text: '27940f0 Copy part of the terminal\'s output' },
-	{ prompt: '$ ', text: 'shcp', typed: true },
+	{ prompt: '$ ', text: 'cy', typed: true },
 ];
 const LEADING = '([{<"\'`', TRAILING = ')]}>"\'`,;:.!?';
 
 // Words, as [row, start, end], with quotes, brackets and trailing punctuation trimmed (the real tool does the same).
 const tokens = [];
 OUTPUT.forEach((line, row) => {
-	if (line.typed) return;  // the line where shcp itself was typed isn't offered
+	if (line.typed) return;  // the line where cy itself was typed isn't offered
 	const full = (line.prompt || '') + line.text;
 	for (const m of full.matchAll(/\S+/g)) {
 		let start = m.index, end = m.index + m[0].length;
