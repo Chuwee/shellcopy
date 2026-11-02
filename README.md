@@ -2,6 +2,8 @@
 
 Copy part of what's on your terminal without touching the mouse. Type `bcp`, narrow down to what you want with a few arrow presses, and press Enter twice to copy.
 
+Website: https://chuwee.github.io/shellcopy/
+
 ## Install
 
 **Homebrew** (macOS and Linux):
