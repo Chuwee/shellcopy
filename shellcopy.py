@@ -100,17 +100,19 @@ class Picker:
 	def visible_tokens(self):
 		return [i for i, (r, _, _) in enumerate(self.tokens) if self.top <= r < self.top + self.view]
 
+	def middle(self, axis):
+		"""Where the words still in play split in two: the first row (axis 0) or column (axis 1) of the second
+		half, or None when they're all on one row or column."""
+		values = sorted({self.tokens[i][axis] for i in self.region})
+		return values[len(values) // 2] if len(values) > 1 else None
+
 	def halve(self, key):
 		"""Keep the half of the remaining words that the arrow points at; land the cursor once one word is left."""
-		if key in (curses.KEY_UP, curses.KEY_DOWN):
-			values = sorted({self.tokens[i][0] for i in self.region})
-			position = lambda i: self.tokens[i][0]
-		else:
-			values = sorted({self.tokens[i][1] for i in self.region})
-			position = lambda i: self.tokens[i][1]
-		if len(values) < 2:
+		axis = 0 if key in (curses.KEY_UP, curses.KEY_DOWN) else 1
+		middle = self.middle(axis)
+		if middle is None:
 			return
-		middle = values[len(values) // 2]
+		position = lambda i: self.tokens[i][axis]
 		first_half = key in (curses.KEY_UP, curses.KEY_LEFT)
 		self.history.append(self.region)
 		self.region = [i for i in self.region if (position(i) < middle) == first_half]
@@ -253,6 +255,9 @@ class Picker:
 				screen.addstr(y, x, line[col], attr)
 				x += 1
 
+		if self.mode == 'zoom' and not self.show_ids:
+			self.draw_splits(screen, width)
+
 		if self.mode == 'cursor':
 			line = self.lines[self.row]
 			screen.addstr(self.row - self.top, self.col - self.left, line[self.col] if self.col < len(line) else ' ', curses.color_pair(3) | curses.A_BOLD)
@@ -260,13 +265,48 @@ class Picker:
 		if self.mode == 'zoom' and self.show_ids:
 			status = ' type an id to jump there · Shift+id copies that word · Backspace hide ids · Esc quit'
 		elif self.mode == 'zoom':
-			status = f' {len(self.region)} words · arrows keep that half · Enter put the cursor here · Tab ids · Backspace undo · Esc quit'
+			status = f' {len(self.region)} words · ↑↓ keep the half above/below the line · ←→ left/right of │ · Enter put the cursor here · Tab ids · Backspace undo · Esc quit'
 		elif self.anchor is not None:
 			status = ' SELECTING · move to grow · Enter copy · z halve again · Tab ids · Backspace clear selection · Esc quit'
 		else:
 			status = ' arrows move · Shift+←→ word · Shift+↑↓ 5 lines · Enter start selecting · Space lines · z halve again · Tab ids · Backspace back'
 		screen.addstr(height - 1, 0, status[:width].ljust(width), curses.color_pair(2))
 		screen.refresh()
+
+	def draw_splits(self, screen, width):
+		"""Show where the arrows would cut: a line under the last row ↑ keeps, and a bar just before the
+		column → keeps from, across the words still in play. Text stays where it is."""
+		rows = [self.tokens[i][0] for i in self.region]
+		top, bottom = max(min(rows), self.top), min(max(rows), self.top + self.view - 1)
+		left = min(self.tokens[i][1] for i in self.region)
+		right = min(max(self.tokens[i][2] for i in self.region), width)
+		accent = curses.color_pair(4) | curses.A_BOLD
+
+		def cell(row, col):
+			line = self.lines[row]
+			return line[col] if col < len(line) else ' '
+
+		row_middle = self.middle(0)
+		if row_middle is not None:
+			above = max(r for r in rows if r < row_middle)  # the last row ↑ keeps
+			if self.top <= above < self.top + self.view:
+				y = above - self.top
+				# Keep each word's look (bold while in play, dim otherwise); only the gaps take the line's colour.
+				in_play = {c for i in self.region if self.tokens[i][0] == above for c in range(self.tokens[i][1], self.tokens[i][2])}
+				for x in range(left, right):
+					ch = cell(above, x)
+					attr = curses.color_pair(4) if ch == ' ' else (curses.A_BOLD if x in in_play else curses.A_DIM)
+					screen.addstr(y, x, ch, attr | curses.A_UNDERLINE)
+				if width < screen.getmaxyx()[1]:
+					screen.addstr(y, width, '↑', accent)
+					if y + 1 < self.view:
+						screen.addstr(y + 1, width, '↓', accent)
+		col_middle = self.middle(1)
+		if col_middle is not None and 0 < col_middle <= width:
+			x = col_middle - 1
+			for row in range(top, bottom + 1):
+				if cell(row, x) == ' ':  # only in the gaps, so it never recolours part of a word
+					screen.addstr(row - self.top, x, '│', accent | (curses.A_UNDERLINE if row_middle is not None and row == above else 0))
 
 	# ------------------------------------------------------------ input
 
@@ -294,6 +334,7 @@ class Picker:
 		curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
 		curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
 		curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
+		curses.init_pair(4, curses.COLOR_MAGENTA, -1)  # where the arrows would split
 		arrows = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT)
 		moves = {
 			curses.KEY_LEFT: lambda: self.step(-1),

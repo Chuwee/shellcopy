@@ -40,8 +40,7 @@ class Shellcopy < Formula
       To let plain `cy` pick from what the terminal shows (scrollback included), add the shell hook
       to your rc files once:
         shellcopy setup
-      `cmd | cy` works without it. Recording the terminal needs util-linux `script`, so on macOS
-      plain `cy` reads tmux's screen or offers to re-run your last command instead.
+      `cmd | cy` works without it.
     EOS
   end
 

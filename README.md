@@ -66,7 +66,7 @@ shellcopy record --check && exec shellcopy record
 
 ## How it works
 
-**1. Halve.** When `cy` opens, every word on screen is in play. Each arrow keeps the half of the remaining words it points at, and the rest dims. Empty space never costs a key press, and a screen of 100 near-identical IPs takes only about 7 presses. When one word is left, a cursor lands on it.
+**1. Halve.** When `cy` opens, every word on screen is in play. Each arrow keeps the half of the remaining words it points at, and the rest dims. A line under a row shows where ↑/↓ would cut, and a │ shows where ←/→ would, so you can see what each arrow keeps before you press it. Empty space never costs a key press, and a screen of 100 near-identical IPs takes only about 7 presses. When one word is left, a cursor lands on it.
 
 **2. Point.** The arrows now move the cursor one character at a time. Press Enter to start selecting, move, and press Enter again to copy.
 
@@ -87,9 +87,9 @@ Ids are inserted in front of their words, pushing the line right while they're s
 
 ## Where the text comes from
 
-- **`cy`** picks from what this terminal shows, scrollback included. This needs the shell hook, which the install script or `shellcopy setup` adds. It replaces your shell with one running inside util-linux `script`, which logs what the terminal prints (text only, no keystrokes) to a private file under `$XDG_RUNTIME_DIR`. That file is in memory, readable only by you, trimmed past 8 MB and deleted when the terminal closes. A small shellcopy process stays alive alongside it to do the trimming and cleanup. Remove the line, or set `SHELLCOPY_RECORD=0`, to turn it off. Recording is skipped inside tmux, where `cy` reads the screen directly, and in VS Code's terminal.
+- **`cy`** picks from what this terminal shows, scrollback included. This needs the shell hook, which the install script or `shellcopy setup` adds. It replaces your shell with one running inside `script` (the util-linux one on Linux, the built-in one on macOS), which logs what the terminal prints (text only, no keystrokes) to a private file readable only by you. On Linux, that file is in memory under `$XDG_RUNTIME_DIR`, and on macOS it's in your per-user temp folder. It's trimmed past 8 MB and deleted when the terminal closes. A small shellcopy process stays alive alongside it to do the trimming and cleanup. Remove the line, or set `SHELLCOPY_RECORD=0`, to turn it off. Recording is skipped inside tmux, where `cy` reads the screen directly, and in VS Code's terminal.
 - **`cmd | cy`** picks from `cmd`'s output.
-- In a terminal that isn't recorded, plain `cy` offers to re-run your last command and capture its output. This needs the bash, zsh or fish hook, which passes your history. On macOS, where recording is unavailable (it needs util-linux `script`), this is what plain `cy` does outside tmux. The command runs in a fresh copy of your shell, so aliases and functions defined in your rc files aren't available.
+- In a terminal that isn't recorded, plain `cy` offers to re-run your last command and capture its output. This needs the bash, zsh or fish hook, which passes your history. The command runs in a fresh copy of your shell, so aliases and functions defined in your rc files aren't available.
 - **`cy --print`** prints the selection instead of copying it, for `x=$(cy --print)`.
 
 It copies with `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever is installed, and otherwise asks the terminal to copy (OSC 52).
