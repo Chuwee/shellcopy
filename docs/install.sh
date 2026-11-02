@@ -35,9 +35,18 @@ main() {
 	src="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 	[ -f "$src/install.sh" ] || die 'the download does not look like shellcopy'
 
-	# Replace the code, keeping nothing from an older version (the installer fetches pyte again).
+	# Replace the code, keeping nothing from an older version (the installer fetches pyte again). Only ever
+	# delete a folder that's a previous shellcopy install (or empty), never one that holds something else.
 	case "$dir" in "" | / | "$HOME") die "refusing to install into '$dir'" ;; esac
-	rm -rf "$dir"
+	if [ -e "$dir" ]; then
+		if [ -f "$dir/shellcopy.py" ] && [ -f "$dir/install.sh" ]; then
+			rm -rf "$dir"
+		elif [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
+			rmdir "$dir"
+		else
+			die "$dir already exists and isn't a shellcopy install; set SHELLCOPY_DIR to a new folder"
+		fi
+	fi
 	mkdir -p "$(dirname "$dir")"
 	mv "$src" "$dir"
 	say "installed into $dir"

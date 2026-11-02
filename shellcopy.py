@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -292,6 +292,8 @@ class Picker:
 	def draw_splits(self, screen, width):
 		"""Show where the arrows would cut: a line under the last row ↑ keeps, and a bar just before the
 		column → keeps from, across the words still in play. Text stays where it is."""
+		if not self.region:
+			return
 		rows = [self.tokens[i][0] for i in self.region]
 		top, bottom = max(min(rows), self.top), min(max(rows), self.top + self.view - 1)
 		left = min(self.tokens[i][1] for i in self.region)
@@ -408,7 +410,12 @@ class Picker:
 				elif key == '\t':  # switch between halving and ids (remembered for next time)
 					self.show_ids, self.typed = not self.show_ids, ''
 					self.chosen_mode = 'ids' if self.show_ids else 'halve'
-					self.ids_start = None
+					if self.ids_start is not None:  # a start picked by id doesn't carry over to halving
+						self.anchor = self.ids_start = None
+				elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE) and self.anchor is None:
+					step = -self.view if key == curses.KEY_PPAGE else self.view
+					self.top = max(0, min(self.top + step, max(0, len(self.lines) - self.view)))
+					self.region, self.history, self.typed = self.visible_tokens() or self.region, [], ''
 				elif self.show_ids:
 					if isinstance(key, str) and key.isalpha() and key.isascii():
 						copied = self.pick_id(key)
@@ -426,12 +433,8 @@ class Picker:
 							self.halve(key)
 				elif key in arrows:
 					self.halve(key)
-				elif key in ('\n', '\r', curses.KEY_ENTER):
+				elif key in ('\n', '\r', curses.KEY_ENTER) and self.region:
 					self.enter_cursor(min(self.region, key=lambda i: self.tokens[i][:2]))
-				elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE):
-					step = -self.view if key == curses.KEY_PPAGE else self.view
-					self.top = max(0, min(self.top + step, max(0, len(self.lines) - self.view)))
-					self.region, self.history = self.visible_tokens() or self.region, []
 				continue
 
 			if key in moves:
@@ -498,16 +501,25 @@ def copy(text):
 def terminal_size():
 	"""The terminal's size, even when stdout is a pipe, as in x=$(cy --print). (shutil's guess falls back to 80x24
 	then, and replaying a wider terminal's recording at 80 columns wraps its lines in the wrong places.)"""
+	def usable(size):
+		return size if size.columns > 0 and size.lines > 0 else None
+	try:
+		return os.terminal_size((int(os.environ['COLUMNS']), int(os.environ['LINES'])))
+	except (KeyError, ValueError):
+		pass
 	for fd in (2, 0, 1):
 		try:
-			return os.get_terminal_size(fd)
+			if usable(os.get_terminal_size(fd)):
+				return os.get_terminal_size(fd)
 		except OSError:
 			pass
 	try:
 		with open('/dev/tty') as tty:
-			return os.get_terminal_size(tty.fileno())
+			if usable(os.get_terminal_size(tty.fileno())):
+				return os.get_terminal_size(tty.fileno())
 	except OSError:
-		return shutil.get_terminal_size()
+		pass
+	return shutil.get_terminal_size()
 
 
 def read_log(path):
@@ -535,17 +547,26 @@ def read_log(path):
 	lines = [line.rstrip() for line in history + screen.display]
 	while lines and not lines[-1].strip():
 		lines.pop()
-	return drop_typed_line(lines, columns)
+	return drop_typed_line(lines, columns, typed_command())
 
 
-def drop_typed_line(lines, columns):
+def drop_typed_line(lines, columns, typed=None):
 	"""Leave out the line where cy itself was typed: the last row, plus the rows above it that it wrapped from
-	(a long prompt and command fill whole rows before wrapping, so a full-width row just above belongs to it)."""
+	(a long prompt and command fill whole rows before wrapping, so a full-width row just above can belong to it).
+	When we know what was typed (the newest history entry), stop as soon as those rows hold all of it, so
+	full-width output just above the prompt isn't taken for part of the command."""
+	squash = lambda text: re.sub(r'\s+', '', text)
+	typed = squash(typed or '')
 	end = len(lines) - 1
 	start = end
 	while start > 0 and end - start < 20 and len(lines[start - 1]) >= columns - 1:
+		if typed and typed in squash(''.join(lines[start:end + 1])):
+			break
 		start -= 1
-	return lines[:max(start, 0)]
+	lines = lines[:max(start, 0)]
+	while lines and not lines[-1].strip():
+		lines.pop()
+	return lines
 
 
 def parent_shell():
@@ -558,13 +579,25 @@ def parent_shell():
 	return path or os.environ.get('SHELL') or '/bin/sh'
 
 
+def shellcopy_call(line):
+	"""Whether a history line runs shellcopy (or cy, or an old name), by whole command words, even by path."""
+	words = {os.path.basename(word) for word in re.split(r'[\s|;&()`$]+', line) if word}
+	return bool({'shellcopy', 'cy', 'shcp', 'bcp', 'bashcopy'} & words)
+
+
+def typed_command():
+	"""The cy command line itself, when the shell passed its history (newest first)."""
+	line = os.environ.get('SHELLCOPY_HISTORY', '').strip().split('\n')[0].strip()
+	return line if line and shellcopy_call(line) else None
+
+
 def last_command():
 	"""The newest history entry that isn't a shellcopy call, from SHELLCOPY_HISTORY (newest first), which the
 	shell integrations fill in. Shells without an integration don't pass their history."""
 	for line in os.environ.get('SHELLCOPY_HISTORY', '').splitlines():
 		line = line.strip()
 		# Whole words only: `cy` is a substring of plenty of other commands (fancy, cycle, ...).
-		if line and not {'shellcopy', 'cy', 'shcp', 'bcp'} & set(re.split(r'[\s|;&()]+', line)):
+		if line and not shellcopy_call(line):
 			return line
 	return None
 
@@ -639,6 +672,7 @@ def why_not_record():
 	return None
 
 
+@functools.lru_cache(maxsize=1)
 def script_variant():
 	"""'util-linux' (Linux), 'bsd' (macOS, FreeBSD, ...) or None, by which `script` this system has."""
 	if not shutil.which('script'):
@@ -828,7 +862,36 @@ def rc_files():
 		'zsh': os.path.join(os.environ.get('ZDOTDIR') or home, '.zshrc'),
 		'fish': os.path.join(config, 'fish', 'conf.d', 'shellcopy.fish'),
 	}
-	return [(shell, path) for shell, path in files.items() if shell == login or shutil.which(shell)]
+	found = [(shell, path) for shell, path in files.items() if shell == login or shutil.which(shell)]
+	if sys.platform == 'darwin' and any(shell == 'bash' for shell, _ in found):
+		# macOS terminals start bash as a login shell, which reads the first of these instead of ~/.bashrc
+		# (with the hook in both, the second one finds the terminal already recorded and does nothing).
+		names = ('.bash_profile', '.bash_login', '.profile')
+		profile = next((n for n in names if os.path.exists(os.path.join(home, n))), names[0])
+		found.append(('bash', os.path.join(home, profile)))
+	return found
+
+
+def read_rc(path):
+	# surrogateescape: rc files in other encodings (an accented comment in Latin-1) pass through unchanged
+	with open(path, encoding='utf-8', errors='surrogateescape') as f:
+		return f.read()
+
+
+def write_rc(path, text):
+	"""Replace the file's contents all at once (a failed write leaves the old file), at the end of any symlink,
+	so a dotfile manager's link stays a link."""
+	real = os.path.realpath(path)
+	tmp = f'{real}.shellcopy-{os.getpid()}'
+	try:
+		with open(tmp, 'w', encoding='utf-8', errors='surrogateescape') as f:
+			f.write(text)
+		if os.path.exists(real):
+			shutil.copymode(real, tmp)
+		os.replace(tmp, real)
+	finally:
+		if os.path.exists(tmp):
+			os.remove(tmp)
 
 
 def strip_hook(text):
@@ -863,15 +926,14 @@ def setup_main(argv):
 					f.write(f'# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n{rc_line("fish")}\n')
 				print(f'› added the shell hook to {path}')
 			continue
-		text = open(path).read() if os.path.exists(path) else ''
+		text = read_rc(path) if os.path.exists(path) else ''
 		new = strip_hook(text)
 		if not args.remove:
 			if new and not new.endswith('\n'):
 				new += '\n'
 			new += ('\n' if new else '') + f'# shellcopy\n{rc_line(shell)}  # copy terminal output with `cy`; remove to uninstall\n'
 		if new != text:
-			with open(path, 'w') as f:  # write in place, so a symlinked rc (dotfile managers) stays a symlink
-				f.write(new)
+			write_rc(path, new)
 		print(f'› {"removed the shell hook from" if args.remove else "added the shell hook to"} {path}')
 	login = os.path.basename(os.environ.get('SHELL', ''))
 	if not args.remove and login and login not in ('bash', 'zsh', 'fish'):
