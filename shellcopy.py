@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
-"""bashcopy: pick part of a command's output with the keyboard and copy it to the clipboard."""
+"""shellcopy: pick part of a command's output with the keyboard and copy it to the clipboard."""
 
 import argparse
 import base64
 import curses
 import os
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import time
+
+__version__ = '0.1.0'
+
+# Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
+_VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
+if os.path.isdir(_VENDOR):
+	sys.path.insert(0, _VENDOR)
+# The launcher's path, so `init` can point the shell hook at it (popped so the recorded shell doesn't inherit it).
+_EXE = os.environ.pop('SHELLCOPY_EXE', None)
 
 ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]')
 TOKEN = re.compile(r'\S+')
@@ -19,7 +31,11 @@ LOG_TAIL = 4_000_000
 ALT_SCREEN = re.compile(rb'\x1b\[\?(1049|1047|47)h.*?(?:\x1b\[\?\1l|$)', re.DOTALL)
 
 
-class BashcopyError(Exception):
+class ShellcopyError(Exception):
+	pass
+
+
+class Cancelled(Exception):
 	pass
 
 
@@ -379,15 +395,15 @@ def read_log(path):
 	try:
 		import pyte
 	except ImportError:
-		raise BashcopyError('the pyte package is missing; run ./install.sh')
+		raise ShellcopyError('the pyte package is missing; run ./install.sh')
 	try:
 		size = os.path.getsize(path)
 		with open(path, 'rb') as f:
 			f.seek(max(0, size - LOG_TAIL))
 			data = f.read()
 	except OSError as e:
-		raise BashcopyError(f'could not read the terminal recording: {e}')
-	# Full-screen programs (less, vim, bashcopy itself) draw on the alternate screen, which the terminal
+		raise ShellcopyError(f'could not read the terminal recording: {e}')
+	# Full-screen programs (less, vim, shellcopy itself) draw on the alternate screen, which the terminal
 	# throws away when they exit; drop them too.
 	data = ALT_SCREEN.sub(b'', data.replace(b'\x00', b''))
 	if data.startswith(b'Script started on'):
@@ -399,7 +415,42 @@ def read_log(path):
 	lines = [line.rstrip() for line in history + screen.display]
 	while lines and not lines[-1].strip():
 		lines.pop()
-	return lines[:-1]  # drop the line where bashcopy itself was typed
+	return lines[:-1]  # drop the line where shellcopy itself was typed
+
+
+def parent_shell():
+	"""The shell that ran us, to re-run a command in; falls back to $SHELL."""
+	try:
+		name = subprocess.run(['ps', '-o', 'comm=', '-p', str(os.getppid())], capture_output=True, text=True).stdout.strip()
+	except OSError:
+		name = ''
+	path = shutil.which(os.path.basename(name.lstrip('-'))) if name else None
+	return path or os.environ.get('SHELL') or '/bin/sh'
+
+
+def last_command():
+	"""The newest history entry that isn't a shellcopy call, from SHELLCOPY_HISTORY (newest first), which the
+	shell integrations fill in. Shells without an integration don't pass their history."""
+	for line in os.environ.get('SHELLCOPY_HISTORY', '').splitlines():
+		line = line.strip()
+		if line and 'shellcopy' not in line and 'bcp' not in line:
+			return line
+	return None
+
+
+def rerun():
+	"""No recording of this terminal: the only way to get output back is to run the last command again."""
+	command = last_command()
+	if not command:
+		raise ShellcopyError('this terminal is not recorded (see `shellcopy record`); pipe output in instead: cmd | bcp')
+	shell = parent_shell()
+	sys.stderr.write(f'shellcopy: this terminal is not recorded (see `shellcopy record`).\n'
+	                 f'Re-run \x1b[1m{command}\x1b[0m to grab its output? [Enter/n] ')
+	sys.stderr.flush()
+	if sys.stdin.readline().strip().lower().startswith('n'):
+		raise Cancelled
+	result = subprocess.run([shell, '-c', command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+	return clean(result.stdout.decode(errors='replace'))
 
 
 def read_input(log):
@@ -408,16 +459,205 @@ def read_input(log):
 		text = sys.stdin.buffer.read().decode(errors='replace')
 		os.dup2(os.open('/dev/tty', os.O_RDWR), 0)
 		return clean(text)
+	log = log or current_recording()
 	if log:
 		return read_log(log)
 	if os.environ.get('TMUX'):
 		result = subprocess.run(['tmux', 'capture-pane', '-p', '-J', '-S', '-500'], capture_output=True, text=True)
-		return clean(result.stdout)[:-1]  # drop the line where bashcopy itself was typed
-	raise BashcopyError('nothing to pick from; pipe output in (`cmd | bashcopy`) or use the bashcopy shell function')
+		return clean(result.stdout)[:-1]  # drop the line where shellcopy itself was typed
+	return rerun()
+
+
+# ---------------------------------------------------------------- recording
+
+RECORD_MAX = 8_000_000   # trim the log when it passes this size...
+RECORD_KEEP = 2_000_000  # ...down to its last this-many bytes
+# util-linux `script` runs its -c command with $SHELL, so give it sh, which notes the recording's tty
+# (so a recording only counts in the terminal that made it), restores $SHELL and starts the real shell.
+RECORD_INNER = ('SHELLCOPY_TTY=$(tty); export SHELLCOPY_TTY; SHELL=$_SHELLCOPY_SHELL; s=$_SHELLCOPY_EXEC; '
+                'unset _SHELLCOPY_SHELL _SHELLCOPY_EXEC; [ -n "$SHELL" ] || unset SHELL; exec "$s"')
+
+
+def current_recording():
+	"""This terminal's recording, if it has one. A new terminal opened from a recorded shell inherits the
+	variables, so check the tty too."""
+	log = os.environ.get('SHELLCOPY_LOG')
+	try:
+		tty = os.ttyname(0)
+	except OSError:
+		return None
+	if log and os.path.isfile(log) and os.environ.get('SHELLCOPY_TTY') == tty:
+		return log
+	return None
+
+
+def why_not_record():
+	"""None if this terminal should be recorded, otherwise the reason it shouldn't."""
+	if not (sys.stdin.isatty() and sys.stdout.isatty()):
+		return 'not a terminal'
+	if current_recording():
+		return 'already recorded'
+	if os.environ.get('SHELLCOPY_RECORD') == '0':
+		return 'SHELLCOPY_RECORD=0'
+	if os.environ.get('TMUX'):
+		return 'inside tmux, where bcp reads the screen directly'
+	if os.environ.get('TERM_PROGRAM') == 'vscode':
+		return "VS Code's terminal"
+	try:
+		version = subprocess.run(['script', '--version'], capture_output=True, text=True).stdout
+	except OSError:
+		version = ''
+	if 'util-linux' not in version:
+		return 'needs util-linux `script`'
+	return None
+
+
+def trim(log):
+	"""Keep the log small. The recorder appends, so rewriting the file under it is safe."""
+	try:
+		if os.path.getsize(log) > RECORD_MAX:
+			with open(log, 'rb') as f:
+				f.seek(-RECORD_KEEP, os.SEEK_END)
+				keep = f.read()
+			with open(log, 'wb') as f:
+				f.write(keep)
+	except OSError:
+		pass
+
+
+def record(shell):
+	"""Run `shell` inside util-linux `script`, which logs what the terminal prints (text only, no keystrokes)
+	to a private file in memory (XDG_RUNTIME_DIR). The log is trimmed as it grows and deleted on exit.
+	Meant to be exec'd from the shell's rc file, so this process stands in for the shell."""
+	reason = why_not_record()
+	if reason:
+		if reason.startswith('needs'):  # the other reasons are expected skips; stay quiet in rc files
+			sys.stderr.write(f'shellcopy: not recording: {reason}\n')
+		return 1
+	shell = shutil.which(shell or os.environ.get('SHELL') or 'sh') or '/bin/sh'
+
+	directory = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', f'shellcopy-{os.getuid()}')
+	os.makedirs(directory, mode=0o700, exist_ok=True)
+	os.chmod(directory, 0o700)
+	for name in os.listdir(directory):  # logs of terminals that are gone
+		pid = name[:-4]
+		if name.endswith('.log') and pid.isdigit():
+			try:
+				os.kill(int(pid), 0)
+			except ProcessLookupError:
+				os.remove(os.path.join(directory, name))
+			except PermissionError:
+				pass
+	log = os.path.join(directory, f'{os.getpid()}.log')
+	os.close(os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+
+	env = dict(os.environ, SHELLCOPY_LOG=log, SHELL='/bin/sh', _SHELLCOPY_SHELL=os.environ.get('SHELL', ''), _SHELLCOPY_EXEC=shell)
+	env.pop('SHELLCOPY_TTY', None)
+
+	def stop(signum, frame):
+		raise SystemExit(128 + signum)
+	signal.signal(signal.SIGHUP, stop)   # the terminal closed: clean up
+	signal.signal(signal.SIGTERM, stop)
+	signal.signal(signal.SIGINT, lambda *_: None)  # a handler, not SIG_IGN, so the shell doesn't inherit it
+
+	started = time.monotonic()
+	try:
+		recorder = subprocess.Popen(['script', '-q', '-f', '-a', '-c', RECORD_INNER, log], env=env)
+		while True:
+			try:
+				rc = recorder.wait(timeout=5)
+				break
+			except subprocess.TimeoutExpired:
+				trim(log)
+	finally:
+		try:
+			os.remove(log)
+		except OSError:
+			pass
+	if rc != 0 and time.monotonic() - started < 2:
+		# The recorder failed to start. This process replaced the shell, so start it unrecorded rather
+		# than closing the terminal.
+		sys.stderr.write('shellcopy: could not start recording this terminal; plain `bcp` will re-run commands instead\n')
+		os.execve(shell, [shell], dict(os.environ, SHELLCOPY_RECORD='0'))
+	return rc
+
+
+def record_main(argv):
+	parser = argparse.ArgumentParser(prog='shellcopy record', description=(
+		'Run SHELL with this terminal recorded, so plain `bcp` can pick from what it shows. '
+		'From an rc file: shellcopy record --check && exec shellcopy record SHELL'))
+	parser.add_argument('shell', nargs='?', help='the shell to run (default: $SHELL)')
+	parser.add_argument('--check', action='store_true', help='only exit 0 if this terminal should be recorded, 1 if not')
+	args = parser.parse_args(argv)
+	if args.check:
+		return 0 if why_not_record() is None else 1
+	return record(args.shell)
+
+
+# ---------------------------------------------------------------- shell integration
+
+# `shellcopy init SHELL` prints these; the rc file evals them. `bcp` works without them as a plain command;
+# they hand shellcopy your history (so an unrecorded terminal can re-run your last command) and make
+# `shellcopy record` replace the shell with a recorded one. {bin} is the shellcopy executable.
+INIT_POSIX = """\
+shellcopy() {{
+	if [ "$1" = record ]; then
+		_shellcopy_shell="${{2:-${{BASH:-}}}}"
+		[ -z "$_shellcopy_shell" ] && [ -n "$ZSH_VERSION" ] && _shellcopy_shell="$(command -v zsh)"
+		{bin} record --check || return 0
+		exec {bin} record ${{_shellcopy_shell:+"$_shellcopy_shell"}}
+	fi
+	SHELLCOPY_HISTORY="$(fc -lnr -10 2>/dev/null)" {bin} "$@"
+}}
+alias bcp=shellcopy
+"""
+
+INIT_FISH = """\
+function shellcopy --description 'pick part of the terminal output with the keyboard and copy it'
+    if test "$argv[1]" = record
+        set -l shell $argv[2]
+        test -n "$shell"; or set shell (status fish-path)
+        {bin} record --check; or return 0
+        exec {bin} record $shell
+    end
+    set -lx SHELLCOPY_HISTORY (history --max 10 | string collect)
+    {bin} $argv
+end
+function bcp --wraps shellcopy --description 'pick part of the terminal output with the keyboard and copy it'
+    shellcopy $argv
+end
+"""
+
+RC_LINES = {
+	'posix': 'command -v shellcopy >/dev/null && eval "$(shellcopy init {shell})" && shellcopy record',
+	'fish': 'status is-interactive; and type -q shellcopy; and shellcopy init fish | source; and shellcopy record',
+}
+
+
+def init_main(argv):
+	parser = argparse.ArgumentParser(prog='shellcopy init', description=(
+		'Print the shell hook. Add this to ~/.bashrc or ~/.zshrc:  ' + RC_LINES['posix'].format(shell='bash') +
+		'   or to ~/.config/fish/conf.d/shellcopy.fish:  ' + RC_LINES['fish']))
+	parser.add_argument('shell', choices=['bash', 'zsh', 'fish', 'sh', 'ksh'])
+	parser.add_argument('--rc-line', action='store_true', help='print the line to add to the rc file instead')
+	args = parser.parse_args(argv)
+	if args.rc_line:
+		print(RC_LINES['fish'] if args.shell == 'fish' else RC_LINES['posix'].format(shell=args.shell))
+		return 0
+	executable = _EXE or shutil.which('shellcopy') or os.path.realpath(sys.argv[0])
+	template = INIT_FISH if args.shell == 'fish' else INIT_POSIX
+	sys.stdout.write(template.format(bin=shlex.quote(executable)))
+	return 0
 
 
 def main():
-	parser = argparse.ArgumentParser(prog='bashcopy', description=__doc__)
+	if sys.argv[1:2] == ['init']:
+		return init_main(sys.argv[2:])
+	if sys.argv[1:2] == ['record']:
+		return record_main(sys.argv[2:])
+	parser = argparse.ArgumentParser(prog='shellcopy', description=__doc__,
+		epilog='subcommands: `shellcopy record` runs your shell with this terminal recorded; `shellcopy init SHELL` prints the shell hook (see --help on each)')
+	parser.add_argument('--version', action='version', version=f'shellcopy {__version__}')
 	parser.add_argument('--print', action='store_true', help='print the selection to stdout instead of copying it')
 	parser.add_argument('--log', help='a `script` recording of this terminal to pick from')
 	args = parser.parse_args()
@@ -425,10 +665,10 @@ def main():
 		lines = read_input(args.log)
 		tokens = tokenize(lines)
 		if not lines or not tokens:
-			raise BashcopyError('the output is empty; nothing to copy')
+			raise ShellcopyError('the output is empty; nothing to copy')
 		result_fd = None
 		if not sys.stdout.isatty():
-			# stdout is captured (e.g. `x=$(cmd | bashcopy --print)`): draw on the terminal, send the result there.
+			# stdout is captured (e.g. `x=$(cmd | shellcopy --print)`): draw on the terminal, send the result there.
 			result_fd = os.dup(1)
 			os.dup2(os.open('/dev/tty', os.O_RDWR), 1)
 		os.environ.setdefault('ESCDELAY', '25')
@@ -443,12 +683,14 @@ def main():
 		preview = preview if len(preview) <= 60 else preview[:59] + '…'
 		sys.stderr.write(f'\x1b[2mcopied with {tool}:\x1b[0m {preview}\n')
 		return 0
-	except BashcopyError as e:
-		sys.stderr.write(f'bashcopy: {e}\n')
+	except Cancelled:
+		return 1
+	except ShellcopyError as e:
+		sys.stderr.write(f'shellcopy: {e}\n')
 		return 1
 	except OSError as e:
 		if e.filename == '/dev/tty':
-			sys.stderr.write('bashcopy: needs a terminal to show the picker\n')
+			sys.stderr.write('shellcopy: needs a terminal to show the picker\n')
 			return 1
 		raise
 	except KeyboardInterrupt:

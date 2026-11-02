@@ -1,0 +1,20 @@
+# On a version tag (v0.1.0, ...): build the .deb and publish a GitHub release with it attached.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches the version in shellcopy.py
+        run: test "v$(sed -n "s/^__version__ = '\(.*\)'$/\1/p" shellcopy.py)" = "$GITHUB_REF_NAME"
+      - name: Build the .deb
+        run: DEBFULLNAME='Chuwee' DEBEMAIL='ignaciodmr17@gmail.com' packaging/deb/build.sh
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.deb --title "$GITHUB_REF_NAME" --generate-notes
