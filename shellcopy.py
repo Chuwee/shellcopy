@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -147,15 +147,17 @@ class Picker:
 		self.move_to(self.row + delta, self.want_col, keep_column=True)
 
 	def step(self, delta):
-		"""Move one character, wrapping to the neighbouring line at either end."""
+		"""Move one character. Outside a selection, wrap to the neighbouring line at either end. While selecting,
+		stop at the line's end: one press too many shouldn't pull in a newline and the next line's first
+		character (↑↓ and Space are there for multi-line selections)."""
 		if delta < 0:
 			if self.col > 0:
 				self.move_to(self.row, self.col - 1)
-			elif self.row > 0:
+			elif self.row > 0 and self.anchor is None:
 				self.move_to(self.row - 1, len(self.lines[self.row - 1]))
 		elif self.col < self.line_end(self.row):
 			self.move_to(self.row, self.col + 1)
-		elif self.row < len(self.lines) - 1:
+		elif self.row < len(self.lines) - 1 and self.anchor is None:
 			self.move_to(self.row + 1, 0)
 
 	def word_jump(self, direction):
@@ -473,8 +475,8 @@ def read_input(log):
 
 RECORD_MAX = 8_000_000   # trim the log when it passes this size...
 RECORD_KEEP = 2_000_000  # ...down to its last this-many bytes
-# util-linux `script` runs its -c command with $SHELL, so give it sh, which notes the recording's tty
-# (so a recording only counts in the terminal that made it), restores $SHELL and starts the real shell.
+# `script` runs sh with this, which notes the recording's tty (so a recording only counts in the terminal
+# that made it), restores $SHELL and starts the real shell.
 RECORD_INNER = ('SHELLCOPY_TTY=$(tty); export SHELLCOPY_TTY; SHELL=$_SHELLCOPY_SHELL; s=$_SHELLCOPY_EXEC; '
                 'unset _SHELLCOPY_SHELL _SHELLCOPY_EXEC; [ -n "$SHELL" ] || unset SHELL; exec "$s"')
 
@@ -504,13 +506,28 @@ def why_not_record():
 		return 'inside tmux, where cy reads the screen directly'
 	if os.environ.get('TERM_PROGRAM') == 'vscode':
 		return "VS Code's terminal"
-	try:
-		version = subprocess.run(['script', '--version'], capture_output=True, text=True).stdout
-	except OSError:
-		version = ''
-	if 'util-linux' not in version:
-		return 'needs util-linux `script`'
+	if script_variant() is None:
+		return 'needs `script` (on Linux, the util-linux one)'
 	return None
+
+
+def script_variant():
+	"""'util-linux' (Linux), 'bsd' (macOS, FreeBSD, ...) or None, by which `script` this system has."""
+	if not shutil.which('script'):
+		return None
+	if sys.platform == 'darwin' or 'bsd' in sys.platform:
+		return 'bsd'  # (don't probe with --version: some BSD versions would take it as a file name and start recording)
+	try:
+		result = subprocess.run(['script', '--version'], capture_output=True, text=True, timeout=5)
+	except (OSError, subprocess.TimeoutExpired):
+		return None
+	return 'util-linux' if 'util-linux' in result.stdout + result.stderr else None
+
+
+def recording_dir():
+	"""Private per-user folder for recordings: in memory on Linux (XDG_RUNTIME_DIR), the per-user temp folder on macOS."""
+	base = os.environ.get('XDG_RUNTIME_DIR') or (os.environ.get('TMPDIR') if sys.platform == 'darwin' else None) or '/tmp'
+	return os.path.join(base, f'shellcopy-{os.getuid()}')
 
 
 def trim(log):
@@ -527,8 +544,8 @@ def trim(log):
 
 
 def record(shell):
-	"""Run `shell` inside util-linux `script`, which logs what the terminal prints (text only, no keystrokes)
-	to a private file in memory (XDG_RUNTIME_DIR). The log is trimmed as it grows and deleted on exit.
+	"""Run `shell` inside `script`, which logs what the terminal prints (text only, no keystrokes) to a private
+	file (see recording_dir). The log is trimmed as it grows and deleted on exit.
 	Meant to be exec'd from the shell's rc file, so this process stands in for the shell."""
 	reason = why_not_record()
 	if reason:
@@ -537,7 +554,7 @@ def record(shell):
 		return 1
 	shell = shutil.which(shell or os.environ.get('SHELL') or 'sh') or '/bin/sh'
 
-	directory = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', f'shellcopy-{os.getuid()}')
+	directory = recording_dir()
 	os.makedirs(directory, mode=0o700, exist_ok=True)
 	os.chmod(directory, 0o700)
 	for name in os.listdir(directory):  # logs of terminals that are gone
@@ -563,7 +580,11 @@ def record(shell):
 
 	started = time.monotonic()
 	try:
-		recorder = subprocess.Popen(['script', '-q', '-f', '-a', '-c', RECORD_INNER, log], env=env)
+		if script_variant() == 'util-linux':  # runs its -c command with $SHELL, which env sets to /bin/sh
+			command = ['script', '-q', '-f', '-a', '-c', RECORD_INNER, log]
+		else:  # BSD: -F flushes after every write, so the log is always current
+			command = ['script', '-q', '-a', '-F', log, '/bin/sh', '-c', RECORD_INNER]
+		recorder = subprocess.Popen(command, env=env)
 		while True:
 			try:
 				rc = recorder.wait(timeout=5)
@@ -633,6 +654,19 @@ RC_LINES = {
 	'posix': 'command -v shellcopy >/dev/null && eval "$(shellcopy init {shell})" && shellcopy record',
 	'fish': 'status is-interactive; and type -q shellcopy; and shellcopy init fish | source; and shellcopy record',
 }
+# The same, for when shellcopy isn't on PATH (on macOS, ~/.local/bin usually isn't): call it by its full path.
+RC_LINES_ABSOLUTE = {
+	'posix': '[ -x {exe} ] && eval "$({exe} init {shell})" && shellcopy record',
+	'fish': 'status is-interactive; and test -x {exe}; and {exe} init fish | source; and shellcopy record',
+}
+
+
+def rc_line(shell):
+	kind = 'fish' if shell == 'fish' else 'posix'
+	if shutil.which('shellcopy'):
+		return RC_LINES[kind].format(shell=shell)
+	exe = shlex.quote(_EXE or os.path.realpath(sys.argv[0]))
+	return RC_LINES_ABSOLUTE[kind].format(shell=shell, exe=exe)
 
 
 def init_main(argv):
@@ -643,7 +677,7 @@ def init_main(argv):
 	parser.add_argument('--rc-line', action='store_true', help='print the line to add to the rc file instead')
 	args = parser.parse_args(argv)
 	if args.rc_line:
-		print(RC_LINES['fish'] if args.shell == 'fish' else RC_LINES['posix'].format(shell=args.shell))
+		print(rc_line(args.shell))
 		return 0
 	executable = _EXE or shutil.which('shellcopy') or os.path.realpath(sys.argv[0])
 	template = INIT_FISH if args.shell == 'fish' else INIT_POSIX
@@ -698,7 +732,7 @@ def setup_main(argv):
 			if not args.remove:
 				os.makedirs(os.path.dirname(path), exist_ok=True)
 				with open(path, 'w') as f:
-					f.write(f'# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n{RC_LINES["fish"]}\n')
+					f.write(f'# shellcopy: copy terminal output with `cy`; delete this file to uninstall\n{rc_line("fish")}\n')
 				print(f'› added the shell hook to {path}')
 			continue
 		text = open(path).read() if os.path.exists(path) else ''
@@ -706,7 +740,7 @@ def setup_main(argv):
 		if not args.remove:
 			if new and not new.endswith('\n'):
 				new += '\n'
-			new += ('\n' if new else '') + f'# shellcopy\n{RC_LINES["posix"].format(shell=shell)}  # copy terminal output with `cy`; remove to uninstall\n'
+			new += ('\n' if new else '') + f'# shellcopy\n{rc_line(shell)}  # copy terminal output with `cy`; remove to uninstall\n'
 		if new != text:
 			with open(path, 'w') as f:  # write in place, so a symlinked rc (dotfile managers) stays a symlink
 				f.write(new)
@@ -738,7 +772,7 @@ def main():
 		lines = read_input(args.log)
 		tokens = tokenize(lines)
 		if not lines or not tokens:
-			raise ShellcopyError('the output is empty; nothing to copy')
+			raise ShellcopyError('nothing on screen to copy yet (the line you typed cy on is left out); run something first, or: cmd | cy')
 		result_fd = None
 		if not sys.stdout.isatty():
 			# stdout is captured (e.g. `x=$(cmd | shellcopy --print)`): draw on the terminal, send the result there.

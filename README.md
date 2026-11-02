@@ -47,7 +47,7 @@ status is-interactive; and type -q shellcopy; and shellcopy init fish | source; 
 **From a checkout:**
 
 ```sh
-./install.sh            # creates .venv with pyte, links `shellcopy` and `cy` into ~/.local/bin,
+./install.sh            # puts pyte in vendor/ (no venv, pip or sudo), links `shellcopy` and `cy` into ~/.local/bin,
                         # and runs `shellcopy setup`
 ./install.sh --no-rc    # same, without touching your rc files
 ```

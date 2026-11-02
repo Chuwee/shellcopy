@@ -1,8 +1,14 @@
 #!/bin/sh
-# Launcher: runs shellcopy.py with the checkout's virtualenv. Works from any shell, and through symlinks
-# (install.sh links it into ~/.local/bin as `shellcopy` and `cy`).
-self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+# Launcher: runs shellcopy.py with python3 (its dependencies are in vendor/ next to it, or installed system-wide).
+# Works from any shell, and through symlinks (install.sh links it into ~/.local/bin as `shellcopy` and `cy`).
+# Resolve symlinks by hand: `readlink -f` is missing on older macOS.
+self=$0
+while [ -L "$self" ]; do
+	link=$(readlink "$self")
+	case $link in
+		/*) self=$link ;;
+		*) self=$(dirname "$self")/$link ;;
+	esac
+done
 home=$(cd "$(dirname "$self")/.." && pwd)
-py="$home/.venv/bin/python"
-[ -x "$py" ] || py=python3
-SHELLCOPY_EXE="$self" exec "$py" "$home/shellcopy.py" "$@"
+SHELLCOPY_EXE="$home/bin/shellcopy" exec python3 "$home/shellcopy.py" "$@"

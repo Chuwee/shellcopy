@@ -1,0 +1,28 @@
+# Install from this checkout and check that a terminal gets recorded and `cy` can copy from it, on Linux and macOS.
+name: test
+on:
+  push:
+    branches: [main, first-version]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            shell: bash
+          - os: macos-latest
+            shell: zsh
+          - os: macos-latest
+            shell: bash
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: SHELL=$(command -v ${{ matrix.shell }}) ./install.sh
+      - name: Rc files after install
+        run: tail -n 3 ~/.bashrc ~/.zshrc 2>/dev/null || true
+      - name: Record a terminal and copy from it
+        run: python3 tests/pty_test.py ${{ matrix.shell }}

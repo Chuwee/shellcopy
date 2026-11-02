@@ -5,7 +5,7 @@
 #   curl -fsSL https://chuwee.github.io/shellcopy/install.sh | sh -s -- --no-rc     # don't touch rc files
 #
 # Downloads the latest release into ~/.local/share/shellcopy (or $SHELLCOPY_DIR) and runs its install.sh, which
-# creates a private virtualenv with pyte, links `shellcopy` and `cy` into ~/.local/bin, and adds the shell hook
+# fetches pyte into it (only python3 is needed: no venv, pip or sudo), links `shellcopy` and `cy` into ~/.local/bin, and adds the shell hook
 # to ~/.bashrc, ~/.zshrc and fish's conf.d. No sudo. Run it again to update.
 #
 # Everything is inside main(), so a partly downloaded script does nothing.
@@ -21,7 +21,7 @@ main() {
 	command -v curl >/dev/null || die 'needs curl'
 	command -v tar >/dev/null || die 'needs tar'
 	command -v bash >/dev/null || die 'needs bash (only to run the installer; shellcopy itself works from any shell)'
-	command -v python3 >/dev/null || die 'needs Python 3 (install python3, and on Debian/Ubuntu python3-venv)'
+	command -v python3 >/dev/null || die 'needs python3'
 
 	# The latest release's tag, from where /releases/latest redirects (no API call, so no rate limit).
 	latest="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest")"
@@ -35,7 +35,7 @@ main() {
 	src="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 	[ -f "$src/install.sh" ] || die 'the download does not look like shellcopy'
 
-	# Replace the code, keeping nothing from an older version (the installer rebuilds the virtualenv).
+	# Replace the code, keeping nothing from an older version (the installer fetches pyte again).
 	case "$dir" in "" | / | "$HOME") die "refusing to install into '$dir'" ;; esac
 	rm -rf "$dir"
 	mkdir -p "$(dirname "$dir")"

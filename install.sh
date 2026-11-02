@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
-# Install shellcopy: a private virtualenv with pyte, `shellcopy` and `cy` in ~/.local/bin, and the shell hook
+# Install shellcopy: pyte in a vendor/ folder, `shellcopy` and `cy` in ~/.local/bin, and the shell hook
 # for each of bash, zsh and fish that's installed. Other shells get printed instructions.
 # Usage: ./install.sh [--no-rc]
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo '› creating virtualenv'
-if python3 -m venv "$here/.venv" 2>/dev/null; then
-	"$here/.venv/bin/pip" install --quiet --upgrade pyte
-else
-	# No ensurepip (Debian/Ubuntu without python3-venv): make a pip-less venv and fill it with the system pip.
-	rm -rf "$here/.venv"
-	python3 -m venv --without-pip "$here/.venv"
-	python3 -m pip --python "$here/.venv/bin/python" install --quiet --upgrade pyte
-fi
+echo '› fetching pyte'
+# pyte and wcwidth are pure Python, so they go in a vendor/ folder next to shellcopy.py: no venv, pip or sudo needed.
+python3 -I "$here/packaging/vendor-deps.py" "$here/vendor"
+rm -rf "$here/.venv"  # older versions installed pyte into a virtualenv
 
 bin="$HOME/.local/bin"
 mkdir -p "$bin"
