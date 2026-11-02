@@ -3,8 +3,8 @@
 class Shellcopy < Formula
   desc "Copy part of your terminal's output with the keyboard"
   homepage "https://github.com/Chuwee/shellcopy"
-  url "https://github.com/Chuwee/shellcopy/archive/refs/tags/v0.1.3.tar.gz"
-  sha256 "7e37ab3baf4194ee2a30209df9618756cf5ff8bb24516cf179b964e76f3f01c0"
+  url "https://github.com/Chuwee/shellcopy/archive/refs/tags/v0.1.4.tar.gz"
+  sha256 "b7e8535d57f7521ba913bb2fa8fb9320fb43431ff15a1376daa83f3f423f9d0e"
   license "MIT"
 
   depends_on "python@3.13"
