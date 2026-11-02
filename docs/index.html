@@ -228,6 +228,74 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 	border: 1px solid var(--border); background: var(--surface); color: var(--text);
 }
 .ghost:hover { border-color: var(--muted); }
+.ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Frustration, the broken screen, and the after lane waiting its turn. */
+.lane { transition: opacity .4s, filter .4s; }
+.lane.waiting { opacity: .42; filter: grayscale(.7); }
+.upnext {
+	position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none;
+	font: 600 13px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #c9cdd4;
+	opacity: 0; transition: opacity .3s;
+}
+.lane.waiting .upnext { opacity: 1; }
+.upnext span { background: rgba(10, 11, 13, .82); border: 1px solid #3b404a; padding: 6px 12px; border-radius: 999px; }
+.lane.shake-s { animation: shake-s .34s ease-in-out; }
+.lane.shake-m { animation: shake-m .46s ease-in-out; }
+.lane.shake-h { animation: shake-h .6s cubic-bezier(.36, .07, .19, .97); }
+@keyframes shake-s { 20% { transform: translateX(-2px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+@keyframes shake-m {
+	15% { transform: translate(-4px, 1px) rotate(-.4deg); } 30% { transform: translate(5px, -1px) rotate(.4deg); }
+	45% { transform: translate(-5px, 0) rotate(-.3deg); } 60% { transform: translate(4px, 1px) rotate(.3deg); }
+	80% { transform: translate(-2px, 0); }
+}
+@keyframes shake-h {
+	8% { transform: translate(-10px, 4px) rotate(-1.2deg); } 18% { transform: translate(11px, -5px) rotate(1.3deg); }
+	28% { transform: translate(-9px, 3px) rotate(-.9deg); } 40% { transform: translate(7px, -3px) rotate(.7deg); }
+	54% { transform: translate(-5px, 2px) rotate(-.4deg); } 70% { transform: translate(3px, -1px); } 86% { transform: translate(-1px, 0); }
+}
+.say {
+	position: absolute; z-index: 5; left: 64%; top: 22%; pointer-events: none; white-space: nowrap;
+	background: #fff; color: #16181d; font: 700 14px/1.2 Inter, sans-serif; padding: 6px 12px; border-radius: 14px;
+	box-shadow: 0 6px 22px rgba(0, 0, 0, .4); opacity: 0; transform: translate(-50%, -50%) scale(.6);
+	transition: opacity .15s, transform .22s cubic-bezier(.3, 1.6, .5, 1);
+}
+.say::after { content: ""; position: absolute; left: 30%; bottom: -7px; border: 8px solid transparent; border-top-color: #fff; border-bottom: 0; }
+.say.show { opacity: 1; transform: translate(-50%, -50%) rotate(-3deg) scale(1); }
+.say .t { display: inline-block; }
+.say.mid { left: 58%; top: 26%; font: 900 min(24px, 5.6cqi)/1.1 Inter, sans-serif; padding: .3em .6em; color: #c2323b; }
+.say.mid.show { transform: translate(-50%, -50%) rotate(4deg) scale(1); }
+.say.big { left: 50%; top: 40%; font: 900 min(30px, 6.3cqi)/1 Inter, sans-serif; letter-spacing: .01em; padding: .28em .5em; border-radius: .4em; color: #c2323b; transition: opacity .15s, transform .18s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+.say.big::after { left: 62%; border-width: 12px; bottom: -11px; }
+.say.big.show { transform: translate(-50%, -50%) rotate(-4deg) scale(var(--g, 1)); }
+.say.big.show .t { animation: tremble .11s linear infinite; }
+.say.big.peak { background: #ffe9ea; color: #a1121d; }
+.say.big.peak::after { border-top-color: #ffe9ea; }
+.say.big.peak .t { animation-name: tremble-hard; animation-duration: .08s; }
+@keyframes tremble-hard { 25% { transform: translate(2px, -2px) rotate(1deg); } 50% { transform: translate(-2px, 1px); } 75% { transform: translate(2px, 2px) rotate(-1deg); } }
+@keyframes tremble { 25% { transform: translate(1px, -1px); } 50% { transform: translate(-1px, 1px); } 75% { transform: translate(1px, 1px); } }
+.crack { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; display: none; }
+.broken .crack { display: block; }
+.crack path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.crack .cd { stroke: rgba(0, 0, 0, .6); stroke-width: 3; }
+.crack .cl { stroke: rgba(255, 255, 255, .85); stroke-width: 1.2; }
+.crack .cf { stroke: rgba(255, 255, 255, .45); stroke-width: .8; }
+.crack .shard { fill: rgba(255, 255, 255, .06); stroke: none; }
+.crack .hit { fill: rgba(255, 255, 255, .9); }
+.flash { position: absolute; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; }
+.flash.go { animation: flash .3s ease-out; }
+@keyframes flash { 0% { opacity: .95; } 100% { opacity: 0; } }
+.cscreen .gl { display: inline-block; }
+.cscreen .gl1 { transform: translateX(.7ch) skewX(-12deg); text-shadow: -2px 0 rgba(255, 60, 120, .75), 2px 0 rgba(60, 200, 255, .75); }
+.cscreen .gl2 { transform: translateX(-1.1ch); opacity: .75; text-shadow: 2px 0 rgba(255, 60, 120, .6), -2px 0 rgba(60, 200, 255, .6); }
+.cscreen .gl3 { transform: translate(.4ch, 2px) skewX(8deg); color: #9aa0aa; }
+.broken .term-bar .title::after { content: " (not responding)"; color: var(--bad); }
+.slowmo { font: 600 11px Inter, sans-serif; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+.slowmo.show { opacity: 1; }
+.lane-head .right { display: flex; align-items: center; gap: 8px; flex: none; }
+#a-toast { gap: 6px; }
+#a-toast kbd { font-size: 13px; min-width: 2em; }
+#a-toast span { color: #c9cdd4; font-weight: 600; }
 .ghost:focus-visible, .tabs button:focus-visible, .copy-btn:focus-visible, .pad button:focus-visible, .demo-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------- demo terminal */
@@ -383,7 +451,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			<h2 id="compare-title">Same output, same task. Two ways.</h2>
 			<div class="goal"><b>Goal:</b> copy the three crashing <span class="tgt">worker-…</span> lines, exactly</div>
 		</div>
-		<p class="sr-only">An animation compares the two. With the mouse, the drag grabs one line too many, then one line too few, then starts one character late, and only gets it right on the fourth attempt after about twelve seconds. With shellcopy, the keys c, y, Enter run it and put a short id in front of every word. Typing e, the id of the first worker name, then a, the id of 51m at the end of the last worker line, selects exactly the three lines, and Enter copies them: six keys, under three seconds.</p>
+		<p class="sr-only">An animation compares the two, one after the other, with optional sound. First the mouse: the drag grabs one line too many, then one line too few, then starts one character late, each try faster and sloppier, with a sigh, an ugh and a shake. On the fourth try a double-click grabs a single word, the user screams “FFFFUUUU”, and the screen cracks. It stays cracked, the clipboard still wrong, after about ten seconds and four tries. Then shellcopy, shown in slow motion: the keys c, y, Enter run it and put a short id in front of every word. Typing e, the id of the first worker name, starts the selection there; a, the id of 51m at the end of the last worker line, extends it over exactly the three lines; and Enter copies them: six keys, about three seconds at normal typing speed.</p>
 		<div class="compare-grid">
 			<div class="lane" id="lane-before">
 				<div class="lane-head">
@@ -392,9 +460,12 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 				</div>
 				<div class="cterm" aria-hidden="true">
 					<div class="term-bar"><i></i><i></i><i></i><span class="title">~ : bash</span></div>
-					<div class="cterm-body">
+					<div class="cterm-body" id="b-body">
 						<pre class="cscreen" id="b-screen"></pre>
 						<div class="toast" id="b-toast"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd></div>
+						<svg class="crack" id="b-crack" preserveAspectRatio="none"></svg>
+						<div class="say" id="b-say"><span class="t"></span></div>
+						<div class="flash" id="b-flash"></div>
 					</div>
 				</div>
 				<div class="lane-foot">
@@ -406,11 +477,15 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			<div class="lane" id="lane-after">
 				<div class="lane-head">
 					<div class="lane-name"><span class="tag good">After</span><span>shellcopy</span></div>
-					<span class="timer" id="a-timer">0.0s</span>
+					<div class="right"><span class="slowmo" id="a-slow" title="Played slowed down so you can follow it; the timer runs at real typing speed">slow motion</span><span class="timer" id="a-timer">0.0s</span></div>
 				</div>
 				<div class="cterm" aria-hidden="true">
 					<div class="term-bar"><i></i><i></i><i></i><span class="title">~ : bash</span></div>
-					<div class="cterm-body"><pre class="cscreen" id="a-screen"></pre></div>
+					<div class="cterm-body">
+						<pre class="cscreen" id="a-screen"></pre>
+						<div class="toast" id="a-toast"><kbd></kbd><span></span></div>
+						<div class="upnext"><span>Up next</span></div>
+					</div>
 				</div>
 				<div class="lane-foot">
 					<div class="clip"><span class="clip-k">Clipboard</span><span class="clip-v" id="a-clip">empty</span></div>
@@ -422,6 +497,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 		<div class="compare-ctrl">
 			<button class="ghost" id="cmp-pause" type="button">Pause</button>
 			<button class="ghost" id="cmp-replay" type="button">Replay</button>
+			<button class="ghost" id="cmp-sound" type="button" aria-pressed="false"><span aria-hidden="true" id="cmp-sound-ic">🔇</span> Sound</button>
 		</div>
 	</div>
 </section>
@@ -984,22 +1060,33 @@ reset();
 	}
 	function cancelAll() { gen++; const w = waiters; waiters = []; w.forEach(x => x.reject(new Cancel())); }
 
-	// Each lane keeps its own elapsed time (nominal in static mode, real while animating).
+	// Each lane keeps its own elapsed time. wait(ms, playMs) counts ms on the lane's clock but takes playMs to play,
+	// so the slowed-down after lane still reports real typing time. The timer counts up smoothly through each step.
 	function lane(timerEl) {
-		const L = { start: now, spent: 0, done: false, el: timerEl };
-		L.wait = async ms => { await sleep(ms); L.spent += ms; };
+		const L = { spent: 0, done: false, el: timerEl, seg: null };
+		L.wait = async (ms, play = ms) => {
+			L.seg = { at: now, play, ms };
+			try { await sleep(play); } finally { L.seg = null; }
+			L.spent += ms;
+		};
 		L.tween = async (ms, fn) => {
 			if (instant) { fn(1); L.spent += ms; return; }
 			const start = now;
-			for (;;) {
-				const t = Math.min(1, (now - start) / ms);
-				fn(t);
-				if (t >= 1) break;
-				await sleep(0);
-			}
+			L.seg = { at: start, play: ms, ms };
+			try {
+				for (;;) {
+					const t = Math.min(1, (now - start) / ms);
+					fn(t);
+					if (t >= 1) break;
+					await sleep(0);
+				}
+			} finally { L.seg = null; }
 			L.spent += ms;
 		};
-		L.time = () => (instant || L.done) ? L.spent : now - L.start;
+		L.time = () => {
+			if (instant || L.done || !L.seg) return L.spent;
+			return L.spent + Math.min(1, (now - L.seg.at) / Math.max(1, L.seg.play)) * L.seg.ms;
+		};
 		L.show = () => { L.el.textContent = (L.time() / 1000).toFixed(1) + 's'; };
 		return L;
 	}
@@ -1007,7 +1094,8 @@ reset();
 	const lerp = (a, b, t) => a + (b - a) * t;
 
 	// ------------------------------------------------------------ before: the mouse
-	const B = { screen: $('b-screen'), clip: $('b-clip'), verdict: $('b-verdict'), tries: [...document.querySelectorAll('#b-tries .try')], toast: $('b-toast') };
+	const B = { lane: $('lane-before'), body: $('b-body'), screen: $('b-screen'), clip: $('b-clip'), verdict: $('b-verdict'), tries: [...document.querySelectorAll('#b-tries .try')], toast: $('b-toast'),
+		say: $('b-say'), sayT: document.querySelector('#b-say .t'), crack: $('b-crack'), flash: $('b-flash') };
 	const pointer = document.createElement('div');
 	pointer.className = 'pointer';
 	pointer.innerHTML = '<svg viewBox="0 0 15 21" aria-hidden="true"><path d="M1 1v16.2l4.1-3.9 2.7 6.3 2.6-1.1-2.7-6.2h5.8z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>';
@@ -1038,14 +1126,17 @@ reset();
 		for (let r = s[0]; r <= s[2]; r++) { const [f, t] = bSpan(r); out.push(BLINES[r].slice(f, t).trimEnd()); }
 		return out.join('\n');
 	}
+	const GLITCH = { 2: 'gl1', 5: 'gl2', 8: 'gl3' };  // rows knocked out of line once the screen is broken
 	function bDraw() {
+		const broken = B.lane.classList.contains('broken');
 		btext.innerHTML = BLINES.map((text, r) => {
 			const sp = bSpan(r);
-			return paint(text, c => {
+			const row = paint(text, c => {
 				if (sp && c >= sp[0] && c < sp[1]) return 'msel';
-				if (r === ROWS - 1 && c === 2) return 'blink';
+				if (r === ROWS - 1 && c === 2) return broken ? '' : 'blink';
 				return promptCls(text, c);
 			});
+			return broken && GLITCH[r] ? `<span class="gl ${GLITCH[r]}">${row}</span>` : row;
 		}).join('\n');
 		bPointer();
 	}
@@ -1056,69 +1147,230 @@ reset();
 		B.toast.classList.remove('show');
 		B.clip.innerHTML = 'empty';
 		B.verdict.className = 'verdict'; B.verdict.innerHTML = '&nbsp;';
-		B.tries.forEach(t => t.className = 'try');
+		B.tries.forEach(t => { t.className = 'try'; t.textContent = t.dataset.n || (t.dataset.n = t.textContent); });
+		B.lane.classList.remove('broken', 'shake-s', 'shake-m', 'shake-h');
+		B.say.className = 'say'; B.say.dataset.kind = ''; B.sayT.textContent = '';
+		B.crack.innerHTML = '';
+		B.flash.classList.remove('go');
 		bDraw();
 	}
 
+	// The mouse gets more frustrated with each miss: faster, jerkier, more clicking, then a sigh, an ugh, a FAAAH.
 	const ATTEMPTS = [
-		{ from: { x: 0.35, y: 7.5 }, to: { x: 5.2, y: 10.45 }, ms: 950, wobble: .25,
-		  bad: 'One line too many', why: 'the prompt came along' },
-		{ from: { x: 0.35, y: 7.5 }, to: { x: 55.6, y: 8.55 }, ms: 900, wobble: .2,
-		  bad: 'One line too few', why: 'let go a row early' },
-		{ from: { x: 1.3, y: 7.45 }, to: { x: 55.6, y: 9.5 }, ms: 1000, wobble: .15,
-		  bad: 'Started one character late', why: '“orker-5d8f…”' },
-		{ from: { x: 0.2, y: 7.5 }, to: { x: 55.6, y: 9.5 }, ms: 1500, wobble: .05, good: 'Got it, on the fourth try' },
+		{ from: { x: 0.35, y: 7.5 }, to: { x: 5.2, y: 10.45 }, move: 650, ms: 950, wobble: .25, jerk: 0, clicks: 0,
+		  bad: 'One line too many', why: 'the prompt came along', say: '*sigh*', shake: '', rest: 1000 },
+		{ from: { x: 0.35, y: 7.5 }, to: { x: 55.6, y: 8.55 }, move: 480, ms: 720, wobble: .3, jerk: .35, clicks: 1,
+		  bad: 'One line too few', why: 'let go a row early', say: 'ugh.', shake: 's', rest: 900 },
+		{ from: { x: 1.3, y: 7.45 }, to: { x: 55.6, y: 9.5 }, move: 340, ms: 520, wobble: .35, jerk: .8, clicks: 3,
+		  bad: 'Started one character late', why: '“orker-5d8f…”', say: 'FAAAH!', mid: true, sound: 'faah', shake: 'm', rest: 1300 },
+		// the last one: a frantic double-click on the last worker name, which grabs just that word
+		{ from: { x: 9.4, y: 9.5 }, word: [9, 0, 21], move: 260, jerk: 1.3,
+		  bad: 'Double-click grabbed one word', why: 'not three lines' },
 	];
+	// Jerky hands: fast wiggle that dies out by the end of a move, so the end point is still exact.
+	const jx = (t, k) => k * (Math.sin(t * 53) * .9 + Math.sin(t * 131) * .5) * (1 - t);
+	const jy = (t, k) => k * .3 * (Math.sin(t * 71) + Math.sin(t * 167) * .6) * (1 - t);
+
+	function say(text, big, mid) {  // a caption bubble: small, mid (FAAAH) or big (the finale)
+		if (!text) { B.say.classList.remove('show'); return; }
+		B.sayT.textContent = text;
+		const kind = big ? 'big' : mid ? 'mid' : 'small';
+		if (!B.say.classList.contains('show') || B.say.dataset.kind !== kind) {
+			B.say.dataset.kind = kind;
+			B.say.className = 'say' + (kind === 'small' ? '' : ' ' + kind);
+			void B.say.offsetWidth;
+			B.say.classList.add('show');
+		}
+	}
+	function shake(kind) {
+		if (instant || !kind) return;
+		B.lane.classList.remove('shake-s', 'shake-m', 'shake-h');
+		void B.lane.offsetWidth;
+		B.lane.classList.add('shake-' + kind);
+	}
+	async function click(L, gap) {  // one press and release of the button, with its sound
+		pointer.classList.add('down');
+		sfx('click');
+		await L.wait(45);
+		pointer.classList.remove('down');
+		await L.wait(gap);
+	}
+
+	// The cracked glass: jagged rays from the impact point, a few rings joining them, and some faint shards.
+	function rng(seed) { return () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+	function buildCrack() {
+		const box = B.body.getBoundingClientRect();
+		const w = Math.max(200, Math.round(box.width)), h = Math.max(150, Math.round(box.height));
+		const pr = pointer.getBoundingClientRect();
+		let cx = pr.left - box.left + 3, cy = pr.top - box.top + 3;
+		if (!(cx > 0 && cy > 0)) { cx = w * .4; cy = h * .6; }
+		cx = Math.max(w * .28, Math.min(w * .7, cx)); cy = Math.max(h * .32, Math.min(h * .66, cy));  // keep the hit where the cracks can spread
+		const R = rng(11), u = Math.min(w, h) / 260, far = Math.hypot(w, h);
+		const N = 14, rays = [];
+		for (let i = 0; i < N; i++) {
+			let a = (i / N) * Math.PI * 2 + (R() - .5) * .35, x = cx, y = cy, d = 0;
+			const pts = [[x, y, 0]];
+			while (d < far && x > -20 && x < w + 20 && y > -20 && y < h + 20) {
+				const step = (12 + R() * 22) * u;
+				a += (R() - .5) * .38;
+				x += Math.cos(a) * step; y += Math.sin(a) * step; d += step;
+				pts.push([x, y, d]);
+			}
+			rays.push(pts);
+		}
+		const P = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
+		const at = (ray, r) => ray.find(p => p[2] >= r) || ray[ray.length - 1];
+		const lines = [], fine = [], shards = [];
+		rays.forEach(ray => lines.push(P(ray)));
+		// a few branches off the rays
+		rays.forEach((ray, i) => {
+			if (i % 3 || ray.length < 5) return;
+			const k = 2 + Math.floor(R() * (ray.length - 3)), [x0, y0] = ray[k], [x1, y1] = ray[k + 1] || ray[k];
+			let a = Math.atan2(y1 - y0, x1 - x0) + (R() < .5 ? -1 : 1) * (.5 + R() * .4), x = x0, y = y0;
+			const b = [[x, y]];
+			for (let s = 0; s < 4; s++) { a += (R() - .5) * .4; const st = (10 + R() * 16) * u; x += Math.cos(a) * st; y += Math.sin(a) * st; b.push([x, y]); }
+			fine.push(P(b));
+		});
+		// concentric fracture rings, broken in places
+		[18, 46, 90].forEach((r0, ri) => {
+			const r = r0 * u;
+			for (let i = 0; i < N; i++) {
+				if (R() < (ri === 0 ? .05 : .28)) continue;
+				const p = at(rays[i], r * (.85 + R() * .3)), q = at(rays[(i + 1) % N], r * (.85 + R() * .3));
+				const mx = (p[0] + q[0]) / 2 + (R() - .5) * 6 * u, my = (p[1] + q[1]) / 2 + (R() - .5) * 6 * u;
+				(ri === 0 ? lines : fine).push(P([p, [mx, my], q]));
+				if (ri === 1 && R() < .4) {
+					const p0 = at(rays[i], 16 * u), q0 = at(rays[(i + 1) % N], 16 * u);
+					shards.push(P([p0, p, [mx, my], q, q0]) + 'Z');
+				}
+			}
+		});
+		const path = (d, c) => `<path class="${c}" d="${d}"/>`;
+		B.crack.setAttribute('viewBox', `0 0 ${w} ${h}`);
+		B.crack.innerHTML = shards.map(d => path(d, 'shard')).join('') +
+			lines.map(d => path(d, 'cd')).join('') + lines.map(d => path(d, 'cl')).join('') + fine.map(d => path(d, 'cf')).join('') +
+			`<circle class="hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(3.5 * u).toFixed(1)}"/>`;
+	}
+
+	// The finale. A silent beat of build-up first (the cursor flails, the "FFFF…" keeps growing), then the scream
+	// (sounds/scream.mp3, 2.23s, loud from the first frame) and the glass breaks 0.15s into it, on the hit.
+	// The scream rings out over the cracked screen, and the after lane starts as it ends. Same timing with sound off.
+	const SCREAM_AT = 1200, BREAK_AT = SCREAM_AT + 150, RAGE_FADE = SCREAM_AT + 1850, AFTER_AT = SCREAM_AT + 2200;
+	const RAGE = [  // [ms into the finale, text, scale]
+		[0, 'FFFF', .8], [300, 'FFFFF', .84], [600, 'FFFFFF', .88], [900, 'FFFFFFF', .93],
+		[SCREAM_AT, 'FFFFFFUUUU', 1.08], [BREAK_AT, 'FFFFFFUUUUUU', 1.18], [SCREAM_AT + 700, 'FFFFFFUUUUUUU', 1.2],
+		[SCREAM_AT + 1300, 'FFFFFFUUUUUUUU', 1.22],
+	];
+	async function flail(ms) {  // the hand loses it: jerky circles around where it was, with stray clicks
+		const p0 = { ...ptr }, start = now;
+		let next = 120;
+		for (;;) {
+			const e = now - start, t = Math.min(1, e / ms);
+			ptr = { x: p0.x + Math.sin(e / 37) * 2.2 + jx(t * .7, 1.4), y: p0.y + Math.cos(e / 53) * .7 + jy(t * .7, 1.2) };
+			bPointer();
+			if (e >= next && e < ms - 100) { sfx('click'); pointer.classList.toggle('down'); next += 140 + (next % 90); }
+			if (t >= 1) break;
+			await sleep(0);
+		}
+		pointer.classList.remove('down');
+	}
+	function breakScreen() {
+		buildCrack();
+		B.lane.classList.add('broken');
+		bDraw();
+		pointer.classList.remove('show', 'down');
+		if (instant) return;
+		sfx('shatter');
+		shake('h');
+		B.flash.classList.remove('go'); void B.flash.offsetWidth; B.flash.classList.add('go');
+	}
 
 	async function runBefore(L) {
 		await L.wait(500);
 		pointer.classList.add('show');
+		let copied = null;
 		for (let i = 0; i < ATTEMPTS.length; i++) {
 			const A = ATTEMPTS[i];
 			B.tries[i].classList.add('now');
-			// move to the start of the drag
+			// move to the start of the drag, shakier every time
 			const p0 = { ...ptr };
-			await L.tween(i === 0 ? 650 : 520, t => { const e = ease(t); ptr = { x: lerp(p0.x, A.from.x, e), y: lerp(p0.y, A.from.y, e) }; bPointer(); });
-			await L.wait(160);
-			// press: a click clears the old selection
-			pointer.classList.add('down');
-			bsel = { a: bCell(A.from), b: bCell(A.from) };
+			await L.tween(A.move, t => { const e = ease(t); ptr = { x: lerp(p0.x, A.from.x, e) + jx(t, A.jerk), y: lerp(p0.y, A.from.y, e) + jy(t, A.jerk) }; bPointer(); });
+			await L.wait(i === 0 ? 160 : 90);
+			// impatient clicking first
+			for (let c = 0; c < (A.clicks || 0); c++) { bsel = null; bDraw(); await click(L, 60); }
 			B.verdict.className = 'verdict'; B.verdict.innerHTML = '&nbsp;';
-			bDraw();
-			await L.wait(120);
-			await L.tween(A.ms, t => {
-				const ex = 1 - Math.pow(1 - t, 2.2), ey = ease(t);
-				ptr = { x: lerp(A.from.x, A.to.x, ex), y: lerp(A.from.y, A.to.y, ey) + Math.sin(t * Math.PI * 3) * A.wobble * (1 - t) };
-				bsel.b = bCell(ptr);
+			if (A.word) {
+				// a double-click selects the word under the pointer
+				await click(L, 50);
+				pointer.classList.add('down');
+				sfx('click');
+				bsel = { a: [A.word[0], A.word[1]], b: [A.word[0], A.word[2]] };
 				bDraw();
-			});
-			await L.wait(140);
-			pointer.classList.remove('down');
-			await L.wait(160);
-			B.toast.classList.add('show');
-			const copied = bCopied();
-			B.clip.innerHTML = clipHTML(copied);
-			await L.wait(380);
-			B.toast.classList.remove('show');
-			const ok = copied === TARGET;
-			B.tries[i].className = 'try ' + (ok ? 'good' : 'bad');
-			B.tries[i].textContent = ok ? '✓' : '✗';
-			if (ok) {
-				L.done = true; L.show(); L.el.className = 'timer stop-bad';
-				B.verdict.className = 'verdict good';
-				B.verdict.innerHTML = `✓ ${A.good} <span class="why">· ${(L.spent / 1000).toFixed(1)}s</span>`;
-				pointer.classList.remove('show');
-				return;
+				await L.wait(45);
+				pointer.classList.remove('down');
+				await L.wait(110);
+			} else {
+				// press: a click clears the old selection
+				pointer.classList.add('down');
+				sfx('click');
+				bsel = { a: bCell(A.from), b: bCell(A.from) };
+				bDraw();
+				await L.wait(i === 0 ? 120 : 80);
+				await L.tween(A.ms, t => {
+					const ex = 1 - Math.pow(1 - t, 2.2), ey = ease(t);
+					ptr = { x: lerp(A.from.x, A.to.x, ex) + jx(t, A.jerk), y: lerp(A.from.y, A.to.y, ey) + Math.sin(t * Math.PI * 3) * A.wobble * (1 - t) + jy(t, A.jerk) };
+					bsel.b = bCell(ptr);
+					bDraw();
+				});
+				await L.wait(i === 0 ? 140 : 80);
+				pointer.classList.remove('down');
+				sfx('click', { soft: true });
+				await L.wait(i === 0 ? 160 : 100);
 			}
+			B.toast.classList.add('show');
+			copied = bCopied();
+			B.clip.innerHTML = clipHTML(copied);
+			await L.wait(i === 0 ? 380 : 300);
+			B.toast.classList.remove('show');
+			B.tries[i].className = 'try bad';
+			B.tries[i].textContent = '✗';
 			B.verdict.className = 'verdict bad';
 			B.verdict.innerHTML = `✗ ${A.bad} <span class="why">· ${A.why}</span>`;
-			await L.wait(950);
+			if (i === ATTEMPTS.length - 1) break;
+			say(A.say, false, A.mid);
+			if (A.sound) sfx(A.sound);
+			shake(A.shake);
+			await L.wait(A.rest);
+			say('');
 		}
+		// give up: the clock stops here
+		L.done = true; L.show(); L.el.className = 'timer stop-bad';
+		await sleep(300);
+		// mega frustration
+		const t0 = now;
+		const until = async ms => { if (!instant) await sleep(Math.max(0, ms - (now - t0))); };
+		const flailing = instant ? Promise.resolve() : flail(BREAK_AT);
+		flailing.catch(() => {});
+		for (const [ms, text, g] of RAGE) {
+			await until(ms);
+			if (!instant) { say(text, true); B.say.style.setProperty('--g', g); }
+			if (ms === SCREAM_AT) sfx('scream');
+			if (ms === BREAK_AT) await flailing;
+			if (ms === BREAK_AT) {
+				B.say.classList.add('peak');
+				breakScreen();
+				B.verdict.innerHTML = `✗ Gave up after 4 tries <span class="why">· ${(L.spent / 1000).toFixed(1)}s and one screen</span>`;
+			}
+		}
+		await until(RAGE_FADE);
+		B.say.classList.remove('show');
+		await until(AFTER_AT);
 	}
 
 	// ------------------------------------------------------------ after: shellcopy, in its default ids mode
 	const WA = 64;  // columns: the ids push each line right
-	const Aui = { screen: $('a-screen'), clip: $('a-clip'), verdict: $('a-verdict'), keys: $('a-keys') };
+	const Aui = { lane: $('lane-after'), screen: $('a-screen'), clip: $('a-clip'), verdict: $('a-verdict'), keys: $('a-keys'), slow: $('a-slow'),
+		toast: $('a-toast'), toastK: document.querySelector('#a-toast kbd'), toastN: document.querySelector('#a-toast span') };
 	const toks = [];
 	OUT.forEach((text, r) => {
 		for (const m of text.matchAll(/\S+/g)) {
@@ -1168,6 +1420,8 @@ reset();
 		keyEls.forEach(k => { k.el.className = 'kc'; k.group.classList.remove('lit'); });
 		Aui.clip.innerHTML = 'empty';
 		Aui.verdict.className = 'verdict'; Aui.verdict.innerHTML = '&nbsp;';
+		Aui.toast.classList.remove('show');
+		Aui.slow.classList.remove('show');
 		aDraw();
 	}
 	function aDraw() {
@@ -1207,54 +1461,253 @@ reset();
 		}
 		Aui.screen.innerHTML = rows.join('\n');
 	}
+	// Played slowed down so people can follow it; the lane's clock still counts real typing time
+	// (wait(nominal, playback)): 6 keys in about 2.8s, played over about 8.5s.
 	let keyIndex = 0;
-	async function press(L, label, after, hold) {
+	function keyToast(label, note) {
+		Aui.toastK.textContent = label;
+		Aui.toastN.textContent = note;
+		Aui.toast.classList.add('show');
+	}
+	async function press(L, after, hold, play, note) {
 		const k = keyEls[keyIndex++];
+		const label = k.el.textContent;
 		k.el.className = 'kc lit hit';
 		k.group.classList.add('lit');
+		sfx(label === '⏎' ? 'enter' : 'key');
+		keyToast(label, note);
 		after();
 		aDraw();
-		await L.wait(110);
+		await L.wait(110, 300);
 		k.el.className = 'kc lit';
-		await L.wait(hold);
+		await L.wait(hold, play);
 	}
 	// Type an id, one letter per key (each letter lights its own keycap).
-	async function typeId(L, id, after, hold) {
-		for (let k = 0; k < id.length; k++) await press(L, id[k], k === id.length - 1 ? after : () => {}, k === id.length - 1 ? hold : 60);
+	async function typeId(L, id, after, hold, play, note) {
+		for (let k = 0; k < id.length; k++) {
+			const last = k === id.length - 1;
+			await press(L, last ? after : () => {}, last ? hold : 60, last ? play : 260, note);
+		}
 	}
 	async function runAfter(L) {
 		keyIndex = 0;
-		await L.wait(450);
-		await press(L, 'c', () => { A.typed = 'c'; }, 40);
-		await press(L, 'y', () => { A.typed = 'cy'; }, 120);
+		Aui.slow.classList.toggle('show', !instant);
+		await L.wait(450, 900);
+		await press(L, () => { A.typed = 'c'; }, 40, 340, 'run cy');
+		await press(L, () => { A.typed = 'cy'; }, 120, 520, 'run cy');
 		// Enter: the ids appear (ids mode is the default); a moment to spot the one in front of the first worker
-		await press(L, '⏎', () => { A.mode = 'start'; }, 700);
+		await press(L, () => { A.mode = 'start'; }, 700, 1700, 'ids appear');
 		// the first id starts the selection there, covering that word
-		await typeId(L, START_ID, () => { const [r, s, e] = toks[FIRST]; A.mode = 'end'; A.sel = { a: [r, s], b: [r, e - 1] }; }, 480);
+		await typeId(L, START_ID, () => { const [r, s, e] = toks[FIRST]; A.mode = 'end'; A.sel = { a: [r, s], b: [r, e - 1] }; }, 480, 1700, 'start here');
 		// the second ends it at the end of that word
-		await typeId(L, END_ID, () => { const [r, , e] = toks[LAST]; A.mode = 'select'; A.sel.b = [r, e - 1]; }, 330);
+		await typeId(L, END_ID, () => { const [r, , e] = toks[LAST]; A.mode = 'select'; A.sel.b = [r, e - 1]; }, 330, 1600, 'end here');
 		const [s, e] = [A.sel.a, A.sel.b];
 		const text = [OUT[s[0]].slice(s[1]), ...OUT.slice(s[0] + 1, e[0]), OUT[e[0]].slice(0, e[1] + 1)].map(l => l.trimEnd()).join('\n');
-		await press(L, '⏎', () => {
+		await press(L, () => {
 			let preview = text.replace(/\n/g, '⏎');
 			if (preview.length > 60) preview = preview.slice(0, 59) + '…';
 			A.mode = 'done'; A.done = preview;
-		}, 0);
+		}, 0, 0, 'copy');
 		L.done = true; L.show(); L.el.className = 'timer stop-good';
 		Aui.clip.innerHTML = clipHTML(text);
 		const ok = text === TARGET;
 		Aui.verdict.className = 'verdict ' + (ok ? 'good' : 'bad');
 		Aui.verdict.innerHTML = `${ok ? '✓ Exactly the 3 lines, first try' : '✗ Not the 3 lines'} <span class="why">· ${KEY_COUNT} keys · ${(L.spent / 1000).toFixed(1)}s</span>`;
+		await sleep(1400);
+		Aui.toast.classList.remove('show');
 	}
 
-	// ------------------------------------------------------------ the loop
+	// ------------------------------------------------------------ sound
+	/* Sound for the before/after demo. Off by default (browsers block autoplay); the "Sound" button turns it on,
+	 * restarts the demo from the start, and remembers the choice in localStorage.
+	 *
+	 * Every effect is synthesized with the Web Audio API, unless a file overrides it. These are fetched and
+	 * decoded (decodeAudioData) when Sound is turned on, so they play without latency; a missing file (404)
+	 * or one that won't decode quietly falls back to the synth. Paths are relative to this page:
+	 *   sounds/click.mp3    a mouse button click (twice for a double-click; pitch varies a little each play)
+	 *   sounds/key.mp3      one mechanical key press (pitch varies a little each play)
+	 *   sounds/enter.mp3    the Enter key, a deeper thock
+	 *   sounds/faah.mp3     "FAAAH": the milder outburst on the third miss (~2.2s, loudest at the start)
+	 *   sounds/scream.mp3   "FFFFUUUU": the finale (~2.2s, loud from the start; the screen breaks 0.15s in)
+	 *   sounds/shatter.mp3  the screen breaking
+	 */
+	const SFX = (() => {
+		const NAMES = ['click', 'key', 'enter', 'faah', 'scream', 'shatter'];
+		const files = {};
+		let ctx = null, bus = null, noiseBuf = null, on = false, loading = null;
+		function ensure() {
+			if (ctx) return ctx;
+			const AC = window.AudioContext || window.webkitAudioContext;
+			if (!AC) return null;
+			ctx = new AC();
+			fresh();
+			return ctx;
+		}
+		function fresh() {  // a new output bus; dropping the old one silences everything still playing on it
+			if (bus) { try { bus.disconnect(); } catch (e) {} }
+			bus = ctx.createGain();
+			bus.gain.value = .8;
+			bus.connect(ctx.destination);
+		}
+		function load() {
+			if (loading) return loading;
+			loading = Promise.all(NAMES.map(async n => {
+				try {
+					const res = await fetch('sounds/' + n + '.mp3');
+					if (!res.ok) return;
+					const data = await res.arrayBuffer();
+					files[n] = await new Promise((ok, bad) => ctx.decodeAudioData(data, ok, bad));
+				} catch (e) { /* missing or undecodable: the synth plays instead */ }
+			}));
+			return loading;
+		}
+		// --- synth building blocks
+		function noise() {
+			if (!noiseBuf) {
+				noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+				const d = noiseBuf.getChannelData(0);
+				for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+			}
+			const s = ctx.createBufferSource();
+			s.buffer = noiseBuf;
+			s.loop = true;
+			return s;
+		}
+		function env(t, peak, attack, decay, out = bus) {  // a gain that rises to peak and decays exponentially
+			const g = ctx.createGain();
+			g.gain.setValueAtTime(0.0001, t);
+			g.gain.exponentialRampToValueAtTime(peak, t + attack);
+			g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+			g.connect(out);
+			return g;
+		}
+		function filter(type, freq, q = 1, out) { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; f.connect(out); return f; }
+		function burst(t, dur, type, freq, q, peak, decay, out) {  // filtered noise through an envelope
+			const n = noise();
+			n.connect(filter(type, freq, q, env(t, peak, .001, decay, out)));
+			n.start(t, Math.random()); n.stop(t + dur);
+		}
+		function tone(t, type, f0, f1, peak, attack, decay, out) {
+			const o = ctx.createOscillator();
+			o.type = type;
+			o.frequency.setValueAtTime(f0, t);
+			if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + attack + decay);
+			o.connect(env(t, peak, attack, decay, out));
+			o.start(t); o.stop(t + attack + decay + .02);
+		}
+		const vary = (x, k) => x * (1 + (Math.random() - .5) * k);
+		// A voice: sawtooths with vibrato through vowel-like formant bandpasses. shape: [[sec, gain]...], pitch: [[sec, Hz]...]
+		function voice(t, pitch, shape, formants, breath) {
+			const out = ctx.createGain();
+			out.gain.setValueAtTime(0.0001, t);
+			shape.forEach(([s, g]) => out.gain.linearRampToValueAtTime(g, t + s));
+			const shaper = ctx.createWaveShaper();
+			const curve = new Float32Array(256);
+			for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(2.2 * x); }
+			shaper.curve = curve;
+			shaper.connect(out); out.connect(bus);
+			const mix = ctx.createGain(); mix.gain.value = .6;
+			formants.forEach(([f, q, g]) => { const gg = ctx.createGain(); gg.gain.value = g; gg.connect(shaper); mix.connect(filter('bandpass', f, q, gg)); });
+			const end = t + shape[shape.length - 1][0];
+			const lfo = ctx.createOscillator(), depth = ctx.createGain();
+			lfo.frequency.value = 6.5; depth.gain.value = 9; lfo.connect(depth);
+			[1, 1.012].forEach(det => {
+				const o = ctx.createOscillator();
+				o.type = 'sawtooth';
+				pitch.forEach(([s, f], i) => i ? o.frequency.exponentialRampToValueAtTime(f * det, t + s) : o.frequency.setValueAtTime(f * det, t + s));
+				depth.connect(o.frequency);
+				o.connect(mix); o.start(t); o.stop(end + .05);
+			});
+			lfo.start(t); lfo.stop(end + .05);
+			if (breath) { const n = noise(); const g = ctx.createGain(); g.gain.value = breath; n.connect(g); g.connect(mix); n.start(t); n.stop(end + .05); }
+		}
+		const SYNTH = {
+			click(t, o) {  // short, sharp, plastic
+				const k = o.soft ? .45 : 1;
+				burst(t, .03, 'highpass', vary(2200, .2), .8, .5 * k, .014);
+				tone(t, 'triangle', vary(2600, .16), 1700, .22 * k, .001, .012);
+				burst(t, .05, 'lowpass', 900, .7, .25 * k, .02);
+			},
+			key(t) {  // a mechanical clack: a bright click on the way down, a body thock, a lighter one on the way up
+				t += Math.random() * .012;
+				const p = vary(1, .24);
+				burst(t, .05, 'bandpass', 2700 * p, 1.4, .55, .032);
+				burst(t, .08, 'lowpass', 650 * p, .8, .5, .05);
+				tone(t, 'sine', 210 * p, 120 * p, .35, .002, .055);
+				burst(t + .075 + Math.random() * .02, .03, 'bandpass', 3800 * p, 1.2, .14, .02);
+			},
+			enter(t) {  // a deeper thock, with a stabilizer rattle
+				t += Math.random() * .01;
+				burst(t, .08, 'bandpass', 1400, 1.1, .6, .05);
+				burst(t, .14, 'lowpass', 420, .8, .7, .09);
+				tone(t, 'sine', 120, 70, .5, .002, .1);
+				burst(t + .012, .05, 'bandpass', 5200, 3, .1, .04);
+				burst(t + .1, .04, 'bandpass', 3000, 1.2, .16, .025);
+			},
+			faah(t) {  // milder: an "fff" then a falling "aah", loudest at the start, ~1s
+				burst(t, .2, 'highpass', 3000, .7, .18, .16);
+				voice(t + .1, [[0, 330], [.9, 190]], [[0, 0.0001], [.04, .55], [.35, .3], [.95, 0.0001]],
+					[[800, 6, 1], [1200, 7, .7], [2600, 8, .25]], .05);
+			},
+			scream(t) {  // "UUUAAAGH": loud from the start, pitch cracking up then falling, fading over the last 0.3s
+				voice(t, [[0, 420], [.25, 520], [1.5, 360], [2.2, 210]],
+					[[0, 0.0001], [.03, .9], [1.0, .8], [1.9, .6], [2.2, 0.0001]],
+					[[420, 5, 1], [900, 6, .6], [2400, 8, .25]], .06);
+			},
+			shatter(t) {  // a sharp noise transient, a thump, then high, decaying, randomly pitched tinkles
+				burst(t, .4, 'highpass', 1200, .6, 1, .26);
+				burst(t, .2, 'lowpass', 280, .8, .9, .12);
+				burst(t + .02, .7, 'bandpass', 6000, .8, .35, .5);
+				for (let i = 0; i < 11; i++) {
+					const at = t + .03 + Math.random() * .75, f = 2500 + Math.random() * 5500;
+					tone(at, 'sine', f, f * .98, .08 + Math.random() * .14, .001, .08 + Math.random() * .28);
+					tone(at, 'sine', f * 2.7, f * 2.6, .03, .001, .06);
+				}
+			},
+		};
+		return {
+			get on() { return on; },
+			NAMES,
+			// Turn on from a user gesture: make (or wake) the context and start loading the files.
+			enable() {
+				on = true;
+				if (!ensure()) return Promise.resolve();
+				if (ctx.state !== 'running') ctx.resume().catch(() => {});
+				return load();
+			},
+			disable() { on = false; if (ctx) { fresh(); ctx.suspend().catch(() => {}); } },
+			restore() { on = true; },  // remembered as on; no context until a gesture
+			wake() { if (on && ensure()) { if (ctx.state !== 'running') ctx.resume().catch(() => {}); load(); } },
+			pause(p) { if (!ctx || !on) return; (p ? ctx.suspend() : ctx.resume()).catch(() => {}); },
+			stop() { if (ctx) fresh(); },
+			play(name, o = {}) {
+				if (!on || !ctx || ctx.state !== 'running') return;
+				const t = ctx.currentTime + .005, buf = files[name];
+				try {
+					if (buf) {
+						const s = ctx.createBufferSource();
+						s.buffer = buf;
+						if (name === 'click' || name === 'key') s.playbackRate.value = vary(1, .14);
+						const g = ctx.createGain(); g.gain.value = o.soft ? .5 : 1;
+						s.connect(g); g.connect(bus);
+						s.start(t);
+					} else SYNTH[name](t, o);
+				} catch (e) { /* never let a sound break the demo */ }
+			},
+		};
+	})();
+	const sfx = (name, o) => { if (!instant) SFX.play(name, o); };
+
+	// ------------------------------------------------------------ the loop: the mouse first, then shellcopy
 	const reduce = matchMedia('(prefers-reduced-motion: reduce)');
-	const pauseBtn = $('cmp-pause'), replayBtn = $('cmp-replay');
+	const pauseBtn = $('cmp-pause'), replayBtn = $('cmp-replay'), soundBtn = $('cmp-sound');
 	let lanes = [];
 	frameHooks.push(() => lanes.forEach(L => { if (!L.done) L.show(); }));
+	const setWaiting = w => Aui.lane.classList.toggle('waiting', w);
 
 	async function play(once) {
 		cancelAll();
+		SFX.stop();
 		const g = gen;
 		try {
 			do {
@@ -1263,10 +1716,14 @@ reset();
 				const lb = lane($('b-timer')), la = lane($('a-timer'));
 				lb.el.className = la.el.className = 'timer';
 				lanes = [lb, la];
-				await Promise.all([runBefore(lb), runAfter(la)]);
+				lanes.forEach(L => L.show());
+				setWaiting(!instant);
+				await runBefore(lb);
+				setWaiting(false);
+				await runAfter(la);
 				lanes.forEach(L => L.show());
 				if (once || instant) break;
-				await sleep(5200);
+				await sleep(6000);
 			} while (g === gen);
 		} catch (e) {
 			if (!(e instanceof Cancel)) throw e;
@@ -1276,10 +1733,18 @@ reset();
 		paused = p;
 		pauseBtn.textContent = p ? 'Play' : 'Pause';
 		pauseBtn.setAttribute('aria-pressed', p);
+		SFX.pause(p);
 		kick();
 	}
+	function restart() {
+		instant = false;
+		setPaused(false);
+		pauseBtn.hidden = false;
+		replayBtn.textContent = 'Replay';
+		play(reduce.matches);
+	}
 	if (reduce.matches) {
-		// No autoplay: show where both end up, and let people play it on request.
+		// No autoplay: show where both end up (the screen already cracked), and let people play it on request.
 		instant = true;
 		play(true).then(() => { instant = false; });
 		pauseBtn.hidden = true;
@@ -1288,13 +1753,33 @@ reset();
 		play(false);
 	}
 	pauseBtn.addEventListener('click', () => setPaused(!paused));
-	replayBtn.addEventListener('click', () => {
-		instant = false;
-		setPaused(false);
-		pauseBtn.hidden = false;
-		replayBtn.textContent = 'Replay';
-		play(reduce.matches);
+	replayBtn.addEventListener('click', restart);
+
+	// Sound: off by default. Turning it on restarts the demo with sound; the choice is remembered.
+	const SOUND_KEY = 'shellcopy-demo-sound';
+	function showSound() {
+		soundBtn.setAttribute('aria-pressed', SFX.on);
+		$('cmp-sound-ic').textContent = SFX.on ? '🔊' : '🔇';
+	}
+	function remember(v) { try { localStorage.setItem(SOUND_KEY, v ? 'on' : 'off'); } catch (e) {} }
+	soundBtn.addEventListener('click', async () => {
+		if (SFX.on) { SFX.disable(); remember(false); showSound(); return; }
+		const loaded = SFX.enable();
+		remember(true); showSound();
+		await Promise.race([loaded, new Promise(r => setTimeout(r, 2500))]);
+		if (SFX.on) restart();
 	});
+	try {
+		if (localStorage.getItem(SOUND_KEY) === 'on') {
+			// Remembered as on: browsers only allow audio after a gesture, so it joins in at the first click or key.
+			SFX.restore();
+			const go = () => { document.removeEventListener('pointerdown', go, true); document.removeEventListener('keydown', go, true); SFX.wake(); };
+			document.addEventListener('pointerdown', go, true);
+			document.addEventListener('keydown', go, true);
+		}
+	} catch (e) {}
+	showSound();
+
 	const section = $('compare');
 	if ('IntersectionObserver' in window) {
 		new IntersectionObserver(entries => { visible = entries.some(e => e.isIntersecting); kick(); }, { threshold: 0.15 }).observe(section);
