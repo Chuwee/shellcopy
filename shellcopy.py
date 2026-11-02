@@ -1001,7 +1001,12 @@ def main():
 		def run(screen):
 			nonlocal picker
 			picker = Picker(lines, tokens, screen.getmaxyx()[0], ids_mode=start_mode != 'halve')
-			return picker.run(screen)
+			try:
+				return picker.run(screen)
+			finally:
+				# blank the picker before leaving, for terminals that don't restore the screen afterwards
+				screen.erase()
+				screen.refresh()
 		try:
 			selection = curses.wrapper(run)
 		finally:
@@ -1009,13 +1014,10 @@ def main():
 				remember_mode(picker.chosen_mode)
 		if selection is None:
 			return 1
-		if args.print:
-			os.write(result_fd if result_fd is not None else 1, (selection + '\n').encode())
-			return 0
-		tool = copy(selection)
-		preview = selection.replace('\n', '⏎')
-		preview = preview if len(preview) <= 60 else preview[:59] + '…'
-		sys.stderr.write(f'\x1b[2mcopied with {tool}:\x1b[0m {preview}\n')
+		if not args.print:
+			copy(selection)
+		# the only output is the selection itself (plus a newline, so the prompt starts on its own line)
+		os.write(result_fd if result_fd is not None else 1, (selection + '\n').encode())
 		return 0
 	except Cancelled:
 		return 1
