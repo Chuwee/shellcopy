@@ -97,12 +97,24 @@ shellcopy record --check && exec shellcopy record
 - In a terminal that isn't recorded, plain `cy` offers to re-run your last command and capture its output. This needs the bash, zsh or fish hook, which passes your history. The command runs in a fresh copy of your shell, so aliases and functions defined in your rc files aren't available.
 - **`cy --print`** prints the selection instead of copying it, for `x=$(cy --print)`.
 
-It copies with `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever is installed, and otherwise asks the terminal to copy (OSC 52).
+After copying, `cy` prints exactly the copied text and nothing else. It copies with `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever is installed, and otherwise asks the terminal to copy (OSC 52). The picker keeps the colours and styles of what's on screen; set `NO_COLOR=1` for plain text.
+
+## From Claude Code, Codex and other agents
+
+Agent apps run your `!` commands without a terminal, so `cy` opens the picker in a new terminal window instead, maximized, over what the agent shows. Pick, press Enter, and the window closes: the text is copied and printed back into the agent.
+
+```
+! cy               # pick from the agent's own screen: the conversation, its output
+! git log | cy     # or from a command's output
+```
+
+Picking from the agent's screen needs the agent to run in a terminal shellcopy records (the shell hook). With Claude Code, `cy` finds that terminal by its parent processes. Codex runs commands from a background server, so `cy` uses the recorded terminal that changed most recently, which is the one the agent is drawing in. The window opens in the same terminal app the agent runs in (ptyxis, GNOME Terminal, Konsole, kitty, WezTerm, Alacritty, foot, xterm and others), or in Terminal.app on macOS; `SHELLCOPY_TERMINAL="kitty -e"` picks one.
 
 ## Limits
 
 - Resizing the window can make the rebuilt screen slightly off.
 - Long lines that the terminal wrapped come back as separate lines.
+- From agents: the window has been tried on Linux; on macOS it's untested, and WSL isn't supported yet. With Codex, a different recorded terminal that's busy at the same moment can be picked instead.
 
 ## Releasing
 

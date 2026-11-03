@@ -5,16 +5,19 @@ import argparse
 import base64
 import curses
 import functools
+import json
 import os
 import re
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 # Packages (Homebrew) put the Python dependencies next to this file instead of in a virtualenv.
 _VENDOR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'vendor')
@@ -87,8 +90,10 @@ class Picker:
 	Backspace always goes one step back.
 	"""
 
-	def __init__(self, lines, tokens, view_height, ids_mode=False):
+	def __init__(self, lines, tokens, view_height, ids_mode=False, styles=None):
 		self.lines = lines
+		self.styles = styles
+		self.attrs = {}  # style index -> curses attribute, filled in as styles are drawn
 		self.tokens = tokens
 		self.view = max(1, view_height - 1)
 		self.top = max(0, len(lines) - self.view)  # show the newest output
@@ -246,6 +251,7 @@ class Picker:
 		(start_row, start_col), (end_row, end_col) = self.bounds()
 		for y, row in enumerate(range(self.top, min(len(self.lines), self.top + self.view))):
 			line = self.lines[row]
+			looks = self.styles.row(row) if self.styles else ()
 			x = 0
 			region_end = -1
 			for col in range(self.left, len(line)):
@@ -261,11 +267,15 @@ class Picker:
 							x += 1
 				if (row, col) in in_region:
 					region_end = in_region[(row, col)]
-				attr = curses.A_NORMAL
-				if self.mode == 'zoom':
-					attr = curses.A_BOLD if col < region_end else curses.A_DIM
+				look = self.look(looks[col]) if col < len(looks) else curses.A_NORMAL
+				if self.mode == 'zoom' and col >= region_end and not (self.show_ids and self.styles):
+					attr = look | curses.A_DIM  # out of play while halving (and, without colours, between ids)
+				elif self.mode == 'zoom' and not self.styles:
+					attr = curses.A_BOLD
+				else:
+					attr = look
 				if self.anchor is not None and (start_row, start_col if not self.line_mode else 0) <= (row, col) <= (end_row, end_col if not self.line_mode else len(line)):
-					attr |= curses.A_REVERSE
+					attr = curses.A_REVERSE  # the selection looks the same whatever the colours under it
 				screen.addstr(y, x, line[col], attr)
 				x += 1
 
@@ -289,6 +299,29 @@ class Picker:
 		screen.addstr(height - 1, 0, status[:width].ljust(width), curses.color_pair(2))
 		screen.refresh()
 
+	def look(self, style):
+		"""The curses attribute for a style of the original text: its colours (a pair each, while pairs last)
+		and bold, italics, underline and reverse."""
+		attr = self.attrs.get(style)
+		if attr is None:
+			fg, bg, bold, italics, underline, reverse = self.styles.table[style]
+			attr = (curses.A_BOLD if bold else 0) | (getattr(curses, 'A_ITALIC', 0) if italics else 0) | \
+				(curses.A_UNDERLINE if underline else 0) | (curses.A_REVERSE if reverse else 0)
+			if curses.has_colors() and (fg, bg) != ('default', 'default'):
+				colors = (curses_color(fg), curses_color(bg))
+				pair = self.pairs.get(colors)
+				if pair is None and self.next_pair < min(curses.COLOR_PAIRS, 256):
+					try:
+						curses.init_pair(self.next_pair, *colors)
+						pair = self.pairs[colors] = self.next_pair
+						self.next_pair += 1
+					except curses.error:
+						pass
+				if pair:
+					attr |= curses.color_pair(pair)
+			self.attrs[style] = attr
+		return attr
+
 	def draw_splits(self, screen, width):
 		"""Show where the arrows would cut: a line under the last row ↑ keeps, and a bar just before the
 		column → keeps from, across the words still in play. Text stays where it is."""
@@ -311,9 +344,15 @@ class Picker:
 				y = above - self.top
 				# Keep each word's look (bold while in play, dim otherwise); only the gaps take the line's colour.
 				in_play = {c for i in self.region if self.tokens[i][0] == above for c in range(self.tokens[i][1], self.tokens[i][2])}
+				looks = self.styles.row(above) if self.styles else ()
 				for x in range(left, right):
 					ch = cell(above, x)
-					attr = curses.color_pair(4) if ch == ' ' else (curses.A_BOLD if x in in_play else curses.A_DIM)
+					if ch == ' ':
+						attr = curses.color_pair(4)
+					elif self.styles:
+						attr = (self.look(looks[x]) if x < len(looks) else 0) | (0 if x in in_play else curses.A_DIM)
+					else:
+						attr = curses.A_BOLD if x in in_play else curses.A_DIM
 					screen.addstr(y, x, ch, attr | curses.A_UNDERLINE)
 				if width < screen.getmaxyx()[1]:
 					screen.addstr(y, width, '↑', accent)
@@ -367,6 +406,7 @@ class Picker:
 		curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
 		curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
 		curses.init_pair(4, curses.COLOR_MAGENTA, -1)  # where the arrows would split
+		self.pairs, self.next_pair = {}, 5  # the rest are for the original text's colours
 		arrows = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT)
 		moves = {
 			curses.KEY_LEFT: lambda: self.step(-1),
@@ -519,7 +559,202 @@ def terminal_size():
 				return os.get_terminal_size(tty.fileno())
 	except OSError:
 		pass
+	tty = agent_terminal()[1]
+	if tty:
+		try:
+			fd = os.open(tty, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+			try:
+				if usable(os.get_terminal_size(fd)):
+					return os.get_terminal_size(fd)
+			finally:
+				os.close(fd)
+		except OSError:
+			pass
 	return shutil.get_terminal_size()
+
+
+# ---------------------------------------------------------------- without a terminal (agent UIs)
+# Claude Code's `!`, and the command tools of other agent UIs, run commands with no terminal at all. The text
+# can still come from a pipe, or from the recording of the terminal the agent itself runs in; the picker then
+# opens in a terminal window of its own, which closes once something is picked.
+
+def has_terminal():
+	try:
+		os.close(os.open('/dev/tty', os.O_RDWR))
+		return True
+	except OSError:
+		return False
+
+
+def ancestors():
+	"""(pid, program name, terminal or None) for each ancestor process, nearest first."""
+	pid, out = os.getppid(), []
+	while pid > 1 and len(out) < 40:
+		try:
+			if os.path.isdir('/proc/self'):
+				with open(f'/proc/{pid}/stat') as f:
+					fields = f.read().rsplit(')', 1)[1].split()
+				with open(f'/proc/{pid}/comm') as f:
+					name = f.read().strip()
+				parent = int(fields[1])
+				try:
+					tty = os.readlink(f'/proc/{pid}/fd/0')
+				except OSError:
+					tty = None
+			else:  # macOS and the BSDs
+				row = subprocess.run(['ps', '-o', 'ppid=,tty=,comm=', '-p', str(pid)], capture_output=True, text=True).stdout.split(None, 2)
+				parent, tty, name = int(row[0]), '/dev/' + row[1], os.path.basename(row[2].strip())
+		except (OSError, ValueError, IndexError):
+			break
+		if tty and not re.match(r'/dev/(pts/|tty)', tty):
+			tty = None
+		out.append((pid, name, tty))
+		pid = parent
+	return out
+
+
+@functools.lru_cache(maxsize=1)
+def agent_terminal():
+	"""(recording, terminal) of the terminal an agent UI that ran us is drawing in; either can be None."""
+	tty = next((tty for _, _, tty in ancestors() if tty), None)
+	if tty:  # Claude Code: the command is a child of the app, in its terminal
+		return current_recording(tty), tty
+	# Codex: commands come from a background server with no terminal. The app's terminal is the recorded one
+	# that changed last, since it's busy drawing the command that's running.
+	directory = recording_dir()
+	try:
+		logs = [os.path.join(directory, n) for n in os.listdir(directory) if n.endswith('.log') and n[:-4].isdigit()]
+	except OSError:
+		return None, None
+	for log in sorted(logs, key=lambda l: os.path.getmtime(l) if os.path.exists(l) else 0, reverse=True):
+		try:
+			os.kill(int(os.path.basename(log)[:-4]), 0)
+		except (OSError, ValueError):
+			continue  # its terminal is gone
+		return log, recording_tty(log)
+	return None, None
+
+
+def recording_tty(log):
+	"""The terminal a recording belongs to, from the shells running in it (Linux only)."""
+	needle = f'SHELLCOPY_LOG={log}'.encode()
+	for pid in filter(str.isdigit, os.listdir('/proc') if os.path.isdir('/proc') else []):
+		try:
+			with open(f'/proc/{pid}/environ', 'rb') as f:
+				env = f.read().split(b'\0')
+		except OSError:
+			continue
+		if needle in env:
+			tty = next((e[14:].decode() for e in env if e.startswith(b'SHELLCOPY_TTY=')), None)
+			if tty:
+				return tty
+	return None
+
+
+def piped_stdin():
+	"""Whether stdin is a pipe or a file (cmd | cy), not just whatever an agent UI left on it."""
+	try:
+		mode = os.fstat(0).st_mode
+	except OSError:
+		return False
+	return stat.S_ISFIFO(mode) or stat.S_ISREG(mode)
+
+
+# How to open a window running a command, for each terminal: the argv that goes before the command.
+TERMINALS = {
+	'ptyxis': ['ptyxis', '--new-window', '--maximize', '-T', 'shellcopy', '--'],
+	'gnome-terminal': ['gnome-terminal', '--maximize', '--title', 'shellcopy', '--'],
+	'kgx': ['kgx', '-T', 'shellcopy', '--'],
+	'konsole': ['konsole', '-e'],
+	'kitty': ['kitty', '-T', 'shellcopy', '--start-as=maximized'],
+	'wezterm': ['wezterm', 'start', '--'],
+	'alacritty': ['alacritty', '-T', 'shellcopy', '-e'],
+	'foot': ['foot', '-T', 'shellcopy'],
+	'xfce4-terminal': ['xfce4-terminal', '--maximize', '-T', 'shellcopy', '-x'],
+	'tilix': ['tilix', '--maximize', '-e'],
+	'xterm': ['xterm', '-T', 'shellcopy', '-maximized', '-e'],
+	'x-terminal-emulator': ['x-terminal-emulator', '-e'],
+}
+# What their processes are called, to open the same terminal the agent runs in.
+TERMINAL_PROCESSES = {'ptyxis-agent': 'ptyxis', 'ptyxis': 'ptyxis', 'gnome-terminal-': 'gnome-terminal', 'kgx': 'kgx',
+	'konsole': 'konsole', 'kitty': 'kitty', 'wezterm-gui': 'wezterm', 'alacritty': 'alacritty', 'foot': 'foot',
+	'xfce4-terminal': 'xfce4-terminal', 'tilix': 'tilix', 'xterm': 'xterm'}
+
+
+def window_command(argv):
+	"""The command that opens a terminal window running argv."""
+	custom = os.environ.get('SHELLCOPY_TERMINAL')  # e.g. "kitty -e"; the command goes after it
+	if custom:
+		return shlex.split(custom) + argv
+	if sys.platform == 'darwin':
+		# Terminal.app; AppleScript strings escape backslashes and double quotes
+		command = (shlex.join(argv) + '; exit').replace('\\', '\\\\').replace('"', '\\"')
+		return ['osascript', '-e', f'tell application "Terminal"\n do script "{command}"\n activate\nend tell']
+	names = [TERMINAL_PROCESSES.get(name) or TERMINAL_PROCESSES.get(name[:15]) for _, name, _ in ancestors()]
+	order = [n for n in names if n] + list(TERMINALS)
+	for name in order:
+		if shutil.which(TERMINALS[name][0]):
+			return TERMINALS[name] + argv
+	raise ShellcopyError('needs a terminal to show the picker, and found no terminal program to open one with; '
+	                     'set SHELLCOPY_TERMINAL, e.g. SHELLCOPY_TERMINAL="xterm -e"')
+
+
+def pick_in_window(lines, mode, styles=None):
+	"""Show the picker in a new terminal window and wait for it; returns the selection, or None."""
+	with tempfile.TemporaryDirectory(prefix='shellcopy-') as work:
+		with open(os.path.join(work, 'job.json'), 'w') as f:
+			json.dump({'lines': lines, 'mode': mode, 'styles': styles.to_json() if styles else None}, f)
+		exe = [_EXE] if _EXE else [sys.executable, os.path.realpath(__file__)]
+		launcher = subprocess.Popen(window_command(exe + ['--window', work]), stdin=subprocess.DEVNULL,
+		                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+		result, started = os.path.join(work, 'result.json'), os.path.join(work, 'pid')
+		deadline = time.time() + 15
+		while not os.path.exists(result):
+			time.sleep(0.05)
+			if os.path.exists(started):
+				# the picker is up: wait as long as it runs (closing its window ends it)
+				try:
+					with open(started) as f:
+						os.kill(int(f.read()), 0)
+				except (OSError, ValueError):
+					if not os.path.exists(result):
+						return None
+			elif time.time() > deadline or (launcher.poll() not in (None, 0)):
+				raise ShellcopyError('needs a terminal to show the picker, and could not open a terminal window; '
+				                     'set SHELLCOPY_TERMINAL, e.g. SHELLCOPY_TERMINAL="xterm -e"')
+		with open(result) as f:
+			result = json.load(f)
+		if result.get('error'):
+			raise ShellcopyError(result['error'])
+		return result['selection']
+
+
+def window_main(work):
+	"""Inside the window pick_in_window opened: run the picker and hand the result back."""
+	with open(os.path.join(work, 'pid.tmp'), 'w') as f:
+		f.write(str(os.getpid()))
+	os.replace(os.path.join(work, 'pid.tmp'), os.path.join(work, 'pid'))
+	selection = error = None
+	try:
+		signal.signal(signal.SIGHUP, lambda *_: sys.exit(1))  # the window was closed
+		with open(os.path.join(work, 'job.json')) as f:
+			job = json.load(f)
+		styles = Styles(**job['styles']) if job.get('styles') else None
+		selection = run_picker(job['lines'], tokenize(job['lines']), job['mode'], styles)
+	except (Cancelled, KeyboardInterrupt, SystemExit):
+		pass
+	except Exception as e:  # the window is about to close: hand the error back to show it there
+		try:
+			window_open = os.isatty(0) and os.tcgetpgrp(0) >= 0
+		except OSError:
+			window_open = False
+		if window_open:  # otherwise the window was closed under the picker: same as cancelling
+			error = f'the picker window failed: {type(e).__name__}: {e}'
+	finally:
+		with open(os.path.join(work, 'result.tmp'), 'w') as f:
+			json.dump({'selection': selection, 'error': error}, f)
+		os.replace(os.path.join(work, 'result.tmp'), os.path.join(work, 'result.json'))
+	return 0
 
 
 def read_log(path):
@@ -535,19 +770,99 @@ def read_log(path):
 			data = f.read()
 	except OSError as e:
 		raise ShellcopyError(f'could not read the terminal recording: {e}')
-	# Full-screen programs (less, vim, shellcopy itself) draw on the alternate screen, which the terminal
-	# throws away when they exit; drop them too.
-	data = ALT_SCREEN.sub(b'', data.replace(b'\x00', b''))
+	data = data.replace(b'\x00', b'')
 	if data.startswith(b'Script started on'):
 		data = data.split(b'\n', 1)[-1]  # the recorder's own header line
 	columns, rows = terminal_size()
 	screen = pyte.HistoryScreen(columns, rows, history=5000)
-	pyte.ByteStream(screen).feed(data)
-	history = [''.join(line[x].data for x in range(columns)) for line in screen.history.top]
-	lines = [line.rstrip() for line in history + screen.display]
+	# Full-screen programs (less, vim, shellcopy itself) draw on the alternate screen, which the terminal
+	# throws away when they exit; drop them too. One that's still open is what's on screen now (an agent UI
+	# like Codex, when cy runs from inside it): show only that, as there's no scrollback there.
+	still_open = [m for m in ALT_SCREEN.finditer(data) if m.end() == len(data) and not re.search(rb'\x1b\[\?(1049|1047|47)l$', m.group(0))]
+	if still_open:
+		pyte.ByteStream(screen).feed(still_open[-1].group(0))
+		rows_ = []
+	else:
+		pyte.ByteStream(screen).feed(ALT_SCREEN.sub(b'', data))
+		rows_ = list(screen.history.top)
+	rows_ += [screen.buffer[y] for y in range(rows)]
+	lines, styles = [], Styles()
+	for row in rows_:
+		chars = [row[x] for x in range(columns)]
+		line = ''.join(c.data for c in chars).rstrip()
+		lines.append(line)
+		styles.add_row(chars[:len(line)])
 	while lines and not lines[-1].strip():
 		lines.pop()
-	return drop_typed_line(lines, columns, typed_command())
+	lines = drop_typed_line(lines, columns, typed_command())
+	styles.rows = styles.rows[:len(lines)]  # drop_typed_line only ever cuts the end
+	return lines, styles
+
+
+class Styles:
+	"""The colours and attributes of the text, as runs per line: rows[i] is [[length, style], ...], and style
+	indexes table, whose entries are [fg, bg, bold, italics, underline, reverse] as pyte reports them."""
+
+	def __init__(self, table=None, rows=None):
+		self.table = table or [['default', 'default', False, False, False, False]]
+		self.rows = rows or []
+		self._index = {tuple(t): i for i, t in enumerate(self.table)}
+
+	def add_row(self, chars):
+		runs = []
+		for c in chars:
+			key = (c.fg, c.bg, c.bold, c.italics, c.underscore, c.reverse)
+			style = self._index.get(key)
+			if style is None:
+				style = self._index[key] = len(self.table)
+				self.table.append(list(key))
+			if runs and runs[-1][1] == style:
+				runs[-1][0] += 1
+			else:
+				runs.append([1, style])
+		self.rows.append(runs)
+
+	def row(self, i):
+		"""The style of each character on line i."""
+		out = []
+		for length, style in (self.rows[i] if i < len(self.rows) else []):
+			out += [style] * length
+		return out
+
+	def to_json(self):
+		return {'table': self.table, 'rows': self.rows}
+
+
+# The 16 basic colours by pyte's names; anything else comes as rrggbb.
+BASIC_COLORS = ['black', 'red', 'green', 'brown', 'blue', 'magenta', 'cyan', 'white']
+
+
+def curses_color(name):
+	"""A pyte colour as a curses colour number, -1 for the terminal's default."""
+	if name == 'default':
+		return -1
+	bright = name.startswith('bright')
+	base = name[6:] if bright else name
+	base = {'yellow': 'brown', 'grey': 'white', 'gray': 'white'}.get(base, base)
+	if base in BASIC_COLORS:
+		n = BASIC_COLORS.index(base)
+		return n + 8 if bright and curses.COLORS >= 16 else n
+	try:
+		r, g, b = int(name[0:2], 16), int(name[2:4], 16), int(name[4:6], 16)
+	except ValueError:
+		return -1
+	if curses.COLORS < 256:  # nearest of the 8 basic colours
+		return (1 if r > 127 else 0) | (2 if g > 127 else 0) | (4 if b > 127 else 0)
+	# nearest in the xterm 256-colour palette: the 6x6x6 cube, or the grey ramp
+	steps = [0, 95, 135, 175, 215, 255]
+	near = lambda v: min(range(6), key=lambda i: abs(steps[i] - v))
+	ci = [near(r), near(g), near(b)]
+	cube = 16 + 36 * ci[0] + 6 * ci[1] + ci[2]
+	cube_err = sum((steps[i] - v) ** 2 for i, v in zip(ci, (r, g, b)))
+	grey = max(0, min(23, round((sum((r, g, b)) / 3 - 8) / 10)))
+	grey_v = 8 + 10 * grey
+	grey_err = sum((grey_v - v) ** 2 for v in (r, g, b))
+	return 232 + grey if grey_err < cube_err else cube
 
 
 def drop_typed_line(lines, columns, typed=None):
@@ -619,17 +934,25 @@ def rerun():
 
 def read_input(log):
 	"""Get the lines to pick from, and make sure the terminal is on stdin for the picker."""
+	if not has_terminal():  # run by an agent UI: see pick_in_window
+		if piped_stdin():
+			return clean(sys.stdin.buffer.read().decode(errors='replace')), None
+		log = log or agent_terminal()[0]
+		if log:
+			return read_log(log)
+		raise ShellcopyError('there is no terminal here to pick from; pipe output in (cmd | cy), '
+		                     'or run this app in a terminal shellcopy records (shellcopy setup)')
 	if not sys.stdin.isatty():
 		text = sys.stdin.buffer.read().decode(errors='replace')
 		os.dup2(os.open('/dev/tty', os.O_RDWR), 0)
-		return clean(text)
+		return clean(text), None
 	log = log or current_recording()
 	if log:
 		return read_log(log)
 	if os.environ.get('TMUX'):
 		result = subprocess.run(['tmux', 'capture-pane', '-p', '-J', '-S', '-500'], capture_output=True, text=True)
-		return clean(result.stdout)[:-1]  # drop the line where shellcopy itself was typed
-	return rerun()
+		return clean(result.stdout)[:-1], None  # drop the line where shellcopy itself was typed
+	return rerun(), None
 
 
 # ---------------------------------------------------------------- recording
@@ -642,12 +965,12 @@ RECORD_INNER = ('SHELLCOPY_TTY=$(tty); export SHELLCOPY_TTY; SHELL=$_SHELLCOPY_S
                 'unset _SHELLCOPY_SHELL _SHELLCOPY_EXEC; [ -n "$SHELL" ] || unset SHELL; exec "$s"')
 
 
-def current_recording():
+def current_recording(tty=None):
 	"""This terminal's recording, if it has one. A new terminal opened from a recorded shell inherits the
 	variables, so check the tty too."""
 	log = os.environ.get('SHELLCOPY_LOG')
 	try:
-		tty = os.ttyname(0)
+		tty = tty or os.ttyname(0)
 	except OSError:
 		return None
 	if log and os.path.isfile(log) and os.environ.get('SHELLCOPY_TTY') == tty:
@@ -967,6 +1290,28 @@ def remember_mode(mode):
 		pass  # not worth failing a copy over
 
 
+def run_picker(lines, tokens, start_mode, styles=None):
+	"""Run the picker on this terminal; returns the selection, or None."""
+	os.environ.setdefault('ESCDELAY', '25')
+	picker = None
+
+	def run(screen):
+		nonlocal picker
+		picker = Picker(lines, tokens, screen.getmaxyx()[0], ids_mode=start_mode != 'halve',
+		                styles=None if os.environ.get('NO_COLOR') else styles)
+		try:
+			return picker.run(screen)
+		finally:
+			# blank the picker before leaving, for terminals that don't restore the screen afterwards
+			screen.erase()
+			screen.refresh()
+	try:
+		return curses.wrapper(run)
+	finally:
+		if picker is not None and picker.chosen_mode:
+			remember_mode(picker.chosen_mode)
+
+
 def main():
 	if sys.argv[1:2] == ['init']:
 		return init_main(sys.argv[2:])
@@ -983,35 +1328,25 @@ def main():
 	mode.add_argument('--ids', action='store_const', const='ids', dest='mode', help='start in ids mode')
 	mode.add_argument('--halve', action='store_const', const='halve', dest='mode', help='start by halving with the arrows')
 	parser.add_argument('--log', help='a `script` recording of this terminal to pick from')
+	parser.add_argument('--window', help=argparse.SUPPRESS)  # internal: the picker in a window of its own
 	args = parser.parse_args()
+	if args.window:
+		return window_main(args.window)
 	try:
-		lines = read_input(args.log)
+		lines, styles = read_input(args.log)
 		tokens = tokenize(lines)
 		if not lines or not tokens:
 			raise ShellcopyError('nothing on screen to copy yet (the line you typed cy on is left out); run something first, or: cmd | cy')
-		result_fd = None
-		if not sys.stdout.isatty():
-			# stdout is captured (e.g. `x=$(cmd | shellcopy --print)`): draw on the terminal, send the result there.
-			result_fd = os.dup(1)
-			os.dup2(os.open('/dev/tty', os.O_RDWR), 1)
-		os.environ.setdefault('ESCDELAY', '25')
 		start_mode = args.mode or os.environ.get('SHELLCOPY_MODE') or remembered_mode() or 'ids'
-		picker = None
-
-		def run(screen):
-			nonlocal picker
-			picker = Picker(lines, tokens, screen.getmaxyx()[0], ids_mode=start_mode != 'halve')
-			try:
-				return picker.run(screen)
-			finally:
-				# blank the picker before leaving, for terminals that don't restore the screen afterwards
-				screen.erase()
-				screen.refresh()
-		try:
-			selection = curses.wrapper(run)
-		finally:
-			if picker is not None and picker.chosen_mode:
-				remember_mode(picker.chosen_mode)
+		result_fd = None
+		if not has_terminal():
+			selection = pick_in_window(lines, start_mode, styles)
+		else:
+			if not sys.stdout.isatty():
+				# stdout is captured (e.g. `x=$(cmd | shellcopy --print)`): draw on the terminal, send the result there.
+				result_fd = os.dup(1)
+				os.dup2(os.open('/dev/tty', os.O_RDWR), 1)
+			selection = run_picker(lines, tokens, start_mode, styles)
 		if selection is None:
 			return 1
 		if not args.print:
