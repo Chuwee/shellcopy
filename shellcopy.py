@@ -32,7 +32,7 @@ LEADING = '([{<"\'`'
 TRAILING = ')]}>"\'`,;:.!?'
 ALPHABET = 'asdfjklghqwertyuiopzxcvbnm'
 LOG_TAIL = 4_000_000
-ALT_SCREEN = re.compile(rb'\x1b\[\?(1049|1047|47)h.*?(?:\x1b\[\?\1l|$)', re.DOTALL)
+ALT_SCREEN = re.compile(rb'\x1b\[\?(1049|1047|47)h.*?(?:\x1b\[\?\1l|\Z)', re.DOTALL)
 
 
 class ShellcopyError(Exception):
@@ -275,7 +275,8 @@ class Picker:
 				else:
 					attr = look
 				if self.anchor is not None and (start_row, start_col if not self.line_mode else 0) <= (row, col) <= (end_row, end_col if not self.line_mode else len(line)):
-					attr = curses.A_REVERSE  # the selection looks the same whatever the colours under it
+					# the selection looks the same whatever the colours under it, and unlike text that was reversed
+					attr = curses.color_pair(5) | curses.A_BOLD if self.styles and curses.has_colors() else curses.A_REVERSE
 				screen.addstr(y, x, line[col], attr)
 				x += 1
 
@@ -400,13 +401,18 @@ class Picker:
 		return self.selection() if instant else None
 
 	def run(self, screen):
-		curses.curs_set(0)
-		curses.use_default_colors()
-		curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-		curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
-		curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
-		curses.init_pair(4, curses.COLOR_MAGENTA, -1)  # where the arrows would split
-		self.pairs, self.next_pair = {}, 5  # the rest are for the original text's colours
+		try:
+			curses.curs_set(0)
+		except curses.error:  # terminals that can't hide the cursor (vt100, dumb)
+			pass
+		if curses.has_colors():
+			curses.use_default_colors()
+			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+			curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
+			curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
+			curses.init_pair(4, curses.COLOR_MAGENTA, -1)  # where the arrows would split
+			curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLUE)  # the selection, over coloured text
+		self.pairs, self.next_pair = {}, 6  # the rest are for the original text's colours
 		arrows = (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT)
 		moves = {
 			curses.KEY_LEFT: lambda: self.step(-1),
@@ -531,8 +537,16 @@ def copy(text):
 			subprocess.run(command, input=text, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 			return command[0]
 	# No clipboard tool: ask the terminal itself (OSC 52), which many terminals and SSH sessions support.
-	with open('/dev/tty', 'w') as tty:
-		tty.write(f'\x1b]52;c;{base64.b64encode(text.encode()).decode()}\x07')
+	# Run by an agent UI, that's the terminal the agent is in.
+	osc = f'\x1b]52;c;{base64.b64encode(text.encode()).decode()}\x07'.encode()
+	target = '/dev/tty' if has_terminal() else agent_terminal()[1]
+	if not target:
+		raise ShellcopyError('found no clipboard tool (wl-copy, xclip, xsel, pbcopy) and no terminal to copy through')
+	fd = os.open(target, os.O_WRONLY | os.O_NOCTTY)
+	try:
+		os.write(fd, osc)
+	finally:
+		os.close(fd)
 	return 'the terminal (OSC 52)'
 
 
@@ -619,20 +633,49 @@ def agent_terminal():
 	tty = next((tty for _, _, tty in ancestors() if tty), None)
 	if tty:  # Claude Code: the command is a child of the app, in its terminal
 		return current_recording(tty), tty
-	# Codex: commands come from a background server with no terminal. The app's terminal is the recorded one
-	# that changed last, since it's busy drawing the command that's running.
+	# Codex: commands come from a background server with no terminal, which has the same name as the app
+	# (codex). The app's terminal is the recorded one running a program by that name.
 	directory = recording_dir()
 	try:
 		logs = [os.path.join(directory, n) for n in os.listdir(directory) if n.endswith('.log') and n[:-4].isdigit()]
 	except OSError:
 		return None, None
+	live = []
 	for log in sorted(logs, key=lambda l: os.path.getmtime(l) if os.path.exists(l) else 0, reverse=True):
 		try:
 			os.kill(int(os.path.basename(log)[:-4]), 0)
 		except (OSError, ValueError):
 			continue  # its terminal is gone
-		return log, recording_tty(log)
+		live.append(log)
+	if not os.path.isdir('/proc/self'):
+		# no /proc to look at (macOS): the recorded terminal that changed last, as the app is drawing in it
+		return (live[0], None) if live else (None, None)
+	generic = {'sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'python3', 'python', 'script', 'setsid', 'sudo', 'env', 'timeout'}
+	names = {name for _, name, _ in ancestors()} - generic
+	running = terminal_programs()
+	for log in live:
+		tty = recording_tty(log)
+		try:
+			if tty and running.get(os.stat(tty).st_rdev, set()) & names:
+				return log, tty
+		except OSError:
+			pass
 	return None, None
+
+
+def terminal_programs():
+	"""{terminal device number: names of the programs running in it}, from /proc."""
+	out = {}
+	for pid in filter(str.isdigit, os.listdir('/proc')):
+		try:
+			with open(f'/proc/{pid}/stat') as f:
+				head, rest = f.read().rsplit(')', 1)
+			tty_nr = int(rest.split()[4])
+			if tty_nr:
+				out.setdefault(tty_nr, set()).add(head.split('(', 1)[1])
+		except (OSError, ValueError, IndexError):
+			pass
+	return out
 
 
 def recording_tty(log):
@@ -708,25 +751,38 @@ def pick_in_window(lines, mode, styles=None):
 		launcher = subprocess.Popen(window_command(exe + ['--window', work]), stdin=subprocess.DEVNULL,
 		                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 		result, started = os.path.join(work, 'result.json'), os.path.join(work, 'pid')
-		deadline = time.time() + 15
-		while not os.path.exists(result):
-			time.sleep(0.05)
-			if os.path.exists(started):
-				# the picker is up: wait as long as it runs (closing its window ends it)
+		try:
+			return wait_for_window(launcher, result, started)
+		finally:
+			if not os.path.exists(result):  # interrupted: close the window rather than leave it orphaned
 				try:
 					with open(started) as f:
-						os.kill(int(f.read()), 0)
+						os.kill(int(f.read()), signal.SIGHUP)
 				except (OSError, ValueError):
-					if not os.path.exists(result):
-						return None
-			elif time.time() > deadline or (launcher.poll() not in (None, 0)):
-				raise ShellcopyError('needs a terminal to show the picker, and could not open a terminal window; '
-				                     'set SHELLCOPY_TERMINAL, e.g. SHELLCOPY_TERMINAL="xterm -e"')
-		with open(result) as f:
-			result = json.load(f)
-		if result.get('error'):
-			raise ShellcopyError(result['error'])
-		return result['selection']
+					pass
+
+
+def wait_for_window(launcher, result, started):
+	"""Wait for the picker in its window: its result, or None if its window was closed."""
+	deadline = time.time() + 15
+	while not os.path.exists(result):
+		time.sleep(0.05)
+		if os.path.exists(started):
+			# the picker is up: wait as long as it runs (closing its window ends it)
+			try:
+				with open(started) as f:
+					os.kill(int(f.read()), 0)
+			except (OSError, ValueError):
+				if not os.path.exists(result):
+					return None
+		elif time.time() > deadline or (launcher.poll() not in (None, 0)):
+			raise ShellcopyError('needs a terminal to show the picker, and could not open a terminal window; '
+			                     'set SHELLCOPY_TERMINAL, e.g. SHELLCOPY_TERMINAL="xterm -e"')
+	with open(result) as f:
+		result = json.load(f)
+	if result.get('error'):
+		raise ShellcopyError(result['error'])
+	return result['selection']
 
 
 def window_main(work):
@@ -735,8 +791,11 @@ def window_main(work):
 		f.write(str(os.getpid()))
 	os.replace(os.path.join(work, 'pid.tmp'), os.path.join(work, 'pid'))
 	selection = error = None
+	started_in_terminal = os.isatty(0)
 	try:
 		signal.signal(signal.SIGHUP, lambda *_: sys.exit(1))  # the window was closed
+		if not started_in_terminal:
+			raise ShellcopyError('the window gave the picker no terminal; check SHELLCOPY_TERMINAL')
 		with open(os.path.join(work, 'job.json')) as f:
 			job = json.load(f)
 		styles = Styles(**job['styles']) if job.get('styles') else None
@@ -748,12 +807,15 @@ def window_main(work):
 			window_open = os.isatty(0) and os.tcgetpgrp(0) >= 0
 		except OSError:
 			window_open = False
-		if window_open:  # otherwise the window was closed under the picker: same as cancelling
-			error = f'the picker window failed: {type(e).__name__}: {e}'
+		if window_open or not started_in_terminal:  # otherwise the window was closed under it: a cancel
+			error = str(e) if isinstance(e, ShellcopyError) else f'the picker window failed: {type(e).__name__}: {e}'
 	finally:
-		with open(os.path.join(work, 'result.tmp'), 'w') as f:
-			json.dump({'selection': selection, 'error': error}, f)
-		os.replace(os.path.join(work, 'result.tmp'), os.path.join(work, 'result.json'))
+		try:
+			with open(os.path.join(work, 'result.tmp'), 'w') as f:
+				json.dump({'selection': selection, 'error': error}, f)
+			os.replace(os.path.join(work, 'result.tmp'), os.path.join(work, 'result.json'))
+		except OSError:
+			pass  # cy that opened the window is gone
 	return 0
 
 
@@ -789,6 +851,7 @@ def read_log(path):
 	lines, styles = [], Styles()
 	for row in rows_:
 		chars = [row[x] for x in range(columns)]
+		chars = [c for c in chars if c.data]  # a wide character's second cell is empty
 		line = ''.join(c.data for c in chars).rstrip()
 		lines.append(line)
 		styles.add_row(chars[:len(line)])
@@ -940,6 +1003,10 @@ def read_input(log):
 		log = log or agent_terminal()[0]
 		if log:
 			return read_log(log)
+		if os.environ.get('TMUX'):  # the agent runs in tmux, which isn't recorded but can show its pane
+			pane = ['-t', os.environ['TMUX_PANE']] if os.environ.get('TMUX_PANE') else []
+			result = subprocess.run(['tmux', 'capture-pane', '-p', '-J', '-S', '-500'] + pane, capture_output=True, text=True)
+			return clean(result.stdout), None
 		raise ShellcopyError('there is no terminal here to pick from; pipe output in (cmd | cy), '
 		                     'or run this app in a terminal shellcopy records (shellcopy setup)')
 	if not sys.stdin.isatty():
