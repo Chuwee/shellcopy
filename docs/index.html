@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>shellcopy</title>
-<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type cy, type the short ids of the first and last word you want, press Enter to copy.">
+<meta name="description" content="Copy part of your terminal's output without touching the mouse. Type cy, type the short ids of the first and last word you want, press Enter to copy. Works in coding harnesses like Claude Code and Codex too.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -351,6 +351,11 @@ section > .wrap > p.sub { color: var(--muted); margin: 0 0 28px; max-width: 680p
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
 .card h3 { margin: 0 0 6px; font-size: 17px; }
 .card p { margin: 0; color: var(--muted); font-size: 15px; }
+.card.feature { grid-column: 1 / -1; border-color: var(--accent); background: linear-gradient(135deg, var(--accent-soft), var(--surface) 70%); }
+.card.feature h3 { font-size: 20px; }
+.card.feature .new { font: 700 11px Inter, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: 3px; }
+.card.feature pre { margin: 12px 0 0; padding: 10px 14px; border-radius: 8px; background: var(--term-bg, #16181d); color: #e6e6e6; font: 14px/1.5 "JetBrains Mono", monospace; overflow-x: auto; }
+.card.feature pre .c { color: #8b919c; }
 .card .num { font: 700 13px "JetBrains Mono", monospace; color: var(--accent); background: var(--accent-soft); border-radius: 5px; padding: 2px 7px; display: inline-block; margin-bottom: 10px; }
 
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 0; flex-wrap: wrap; }
@@ -440,7 +445,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			<a class="btn primary" href="#install">Other ways to install</a>
 			<a class="btn" href="https://github.com/Chuwee/shellcopy">View on GitHub</a>
 		</div>
-		<p class="facts"><span>Any shell</span><span>No sudo</span><span>One Python file</span><span>MIT</span></p>
+		<p class="facts"><span>Any shell</span><span>Works in coding harnesses</span><span>No sudo</span><span>One Python file</span><span>MIT</span></p>
 	</div>
 </div>
 
@@ -566,6 +571,12 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 		<h2>Built for real terminals</h2>
 		<p class="sub">No terminal plugin and no special emulator. It reads what your terminal already shows.</p>
 		<div class="grid">
+			<div class="card feature">
+				<h3>Works in coding harnesses!<span class="new">New</span></h3>
+				<p>Claude Code, Codex and other agents run your <code>!</code> commands without a terminal, so <code>cy</code> opens the picker in a window of its own, over the agent's screen in its original colours. Pick, press Enter, and the window closes: the text is copied and shows up back in the chat.</p>
+				<pre><span class="c">›</span> ! cy              <span class="c"># pick from the conversation itself</span>
+<span class="c">›</span> ! git log | cy    <span class="c"># or from a command's output</span></pre>
+			</div>
 			<div class="card">
 				<h3>Any shell</h3>
 				<p><code>cy</code> is a plain command that works in bash, zsh, fish, ksh, dash, nushell and others. bash, zsh and fish also get a small optional hook.</p>
