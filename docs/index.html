@@ -123,6 +123,35 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .facts { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
 .facts span + span::before { content: "·"; margin: 0 8px; opacity: .6; }
 
+/* ---------------------------------------------------------------- in a coding harness */
+.harness { padding: 40px 0 8px; }
+.harness .wrap { max-width: 880px; }
+.harness-head { text-align: center; margin-bottom: 18px; }
+.harness-head h2 { margin: 0 0 8px; }
+.harness-head p { color: var(--muted); margin: 0 auto; max-width: 620px; }
+.hdemo { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
+#h-chat, #h-pick { --cols-em: 37.5; }
+#h-chat { height: calc(13 * 1.6em + 18px); }
+.hwin {
+	position: absolute; inset: 10px 3% 10px; z-index: 4; display: flex; flex-direction: column;
+	background: var(--term-bg); border: 1px solid #3b404a; border-radius: 10px; overflow: hidden;
+	box-shadow: 0 18px 50px rgba(0, 0, 0, .55); opacity: 0; transform: scale(.94) translateY(8px);
+	transition: opacity .22s, transform .22s; pointer-events: none;
+}
+.hwin.show { opacity: 1; transform: none; }
+@media (max-width: 600px) { .hwin { inset: 8px 4px; } #h-pick { --cols-em: 39; } }
+.hwin .term-bar { padding: 7px 12px; background: #20242c; }
+.hwin .cscreen { min-height: 0; flex: 1; }
+.cscreen .hu { background: #2c313a; color: #f2f3f5; }
+.cscreen .hb { color: #6fd3a5; }
+.cscreen .hc { color: #7cc7f5; }
+.cscreen .hs { background: #2f5fc4; color: #fff; font-weight: 600; }
+.cscreen .hok { color: #6fd3a5; font-weight: 600; }
+.hkeys { display: flex; gap: 6px; justify-content: center; align-items: center; min-height: 34px; margin-top: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.hkeys kbd { font: 600 13px "JetBrains Mono", monospace; min-width: 1.9em; text-align: center; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); opacity: .35; transition: opacity .15s, border-color .15s, color .15s; }
+.hkeys kbd.on { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.hkeys .lbl { margin-right: 4px; }
+
 /* ---------------------------------------------------------------- before / after */
 .compare { padding: 48px 0 8px; }
 .compare-head { text-align: center; margin-bottom: 22px; }
@@ -503,6 +532,30 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 			<button class="ghost" id="cmp-pause" type="button">Pause</button>
 			<button class="ghost" id="cmp-replay" type="button">Replay</button>
 			<button class="ghost" id="cmp-sound" type="button" aria-pressed="false"><span aria-hidden="true" id="cmp-sound-ic">🔇</span> Sound</button>
+		</div>
+	</div>
+</section>
+
+<section class="harness" id="harness" aria-labelledby="harness-title">
+	<div class="wrap">
+		<div class="harness-head">
+			<p class="eyebrow">New · in coding harnesses</p>
+			<h2 id="harness-title">Copy from inside your coding agent</h2>
+			<p>In Claude Code, Codex and other agents, type <code>! cy</code>. The picker opens in its own window over the chat, in the chat's colours; what you pick is copied and shows up back in the chat.</p>
+		</div>
+		<p class="sr-only">An animation: in a coding agent's chat, the agent suggests a command. The user types ! cy and a shellcopy window opens over the chat with a short id in front of every word. Typing the id of export and then the id of the database URL selects that command; Enter copies it, the window closes, and the chat shows the copied command.</p>
+		<div class="hdemo">
+			<div class="cterm" aria-hidden="true">
+				<div class="term-bar"><i></i><i></i><i></i><span class="title">~/app : agent</span></div>
+				<div class="cterm-body">
+					<pre class="cscreen" id="h-chat"></pre>
+					<div class="hwin" id="h-win">
+						<div class="term-bar"><i></i><i></i><i></i><span class="title">shellcopy</span></div>
+						<pre class="cscreen" id="h-pick"></pre>
+					</div>
+				</div>
+			</div>
+			<div class="hkeys" id="h-keys" aria-hidden="true"></div>
 		</div>
 	</div>
 </section>
@@ -1815,6 +1868,93 @@ document.querySelectorAll('.codeblock').forEach(block => {
 	});
 	block.appendChild(btn);
 });
+</script>
+<script>
+// The coding-harness demo: an agent chat, `! cy`, the picker in its own window, two ids, Enter, the pick in the chat.
+(() => {
+	const chat = document.getElementById('h-chat'), pick = document.getElementById('h-pick');
+	const win = document.getElementById('h-win'), keysEl = document.getElementById('h-keys');
+	if (!chat) return;
+	const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	// The chat, as [text, class] runs per line.
+	const CHAT = [
+		[['❯ ', 'hu'], ['why do the tests fail on CI?                        ', 'hu']],
+		[],
+		[['● ', 'hb'], ['The test job is missing its database URL. Set it,', '']],
+		[['  then re-run the tests:', '']],
+		[],
+		[['    ', ''], ['export DATABASE_URL=postgres://ci:ci@db:5432/test', 'hc']],
+		[['    ', ''], ['npm test', 'hc']],
+		[],
+	];
+	const FIRST = 'export', LAST = 'DATABASE_URL=postgres://ci:ci@db:5432/test';
+	const PICKED = FIRST + ' ' + LAST;
+	const ALPHA = 'asdfjklghqwertyuiopzxcvbnm';
+	// Words and their ids: nearest the bottom get the easiest ones, as in cy.
+	const words = [];
+	CHAT.forEach((runs, r) => { let col = 0; runs.forEach(([t, c]) => { t.replace(/\S+/g, (w, i) => { if (!/^[❯●]$/.test(w)) words.push({ r, col: col + i, w }); }); col += t.length; }); });
+	words.sort((a, b) => b.r - a.r || b.col - a.col).forEach((w, i) => { w.id = ALPHA[i] || ('q' + ALPHA[i - 26]); });
+	const idOf = text => words.find(w => w.w === text).id;
+	const ID1 = idOf(FIRST), ID2 = idOf(LAST);
+
+	function render(lines, opts = {}) {
+		return lines.map((runs, r) => {
+			let out = '', col = 0;
+			runs.forEach(([t, c]) => {
+				for (let i = 0; i < t.length; i++, col++) {
+					const w = opts.ids && words.find(x => x.r === r && x.col === col);
+					if (w) out += `<span class="idb${opts.typed && w.id === opts.typed ? ' idd' : ''}">${w.id}</span>`;
+					const inSel = opts.sel && r === 5 && col >= 4 && col < 4 + opts.sel;
+					const cls = inSel ? 'hs' : c;
+					out += cls ? `<span class="${cls}">${esc(t[i])}</span>` : esc(t[i]);
+				}
+			});
+			return out;
+		}).join('\n');
+	}
+	const prompt = (typed, cursor) => [['❯ ', 'prompt'], [typed, ''], [cursor ? ' ' : '', cursor ? 'blink' : '']];
+	const KEYS = ['!', ' ', 'c', 'y', '⏎', ID1, ID2, '⏎'];
+	keysEl.innerHTML = '<span class="lbl">Keys</span>' + KEYS.map(k => `<kbd>${k === ' ' ? '␣' : esc(k)}</kbd>`).join('');
+	const kbds = [...keysEl.querySelectorAll('kbd')];
+	const lit = n => kbds.forEach((k, i) => k.classList.toggle('on', i < n));
+
+	const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+	const sleep = ms => new Promise(r => setTimeout(r, ms));
+	let visible = true;
+	if ('IntersectionObserver' in window) new IntersectionObserver(e => { visible = e[0].isIntersecting; }).observe(chat);
+	const done = [...CHAT, [['❯ ', 'prompt'], ['! cy', '']], [['  ⎿ ', 'faint'], [PICKED, '']], [['  ✓ copied', 'hok']], [], prompt('', true)];
+
+	async function loop() {
+		if (reduce) { chat.innerHTML = render(done); lit(KEYS.length); return; }
+		for (;;) {
+			while (!visible) await sleep(300);
+			win.classList.remove('show'); lit(0);
+			chat.innerHTML = render([...CHAT, prompt('', true)]);
+			await sleep(1600);
+			for (let i = 1; i <= 4; i++) { chat.innerHTML = render([...CHAT, prompt('! cy'.slice(0, i), true)]); lit(i); await sleep(170); }
+			await sleep(450);
+			lit(5);
+			chat.innerHTML = render([...CHAT, prompt('! cy', false), [['  ⎿ Running…', 'faint']]]);
+			pick.innerHTML = render(CHAT, { ids: true }) + '\n<span class="sbar"> IDS · type an id to start there · Tab halve · Esc quit</span>';
+			await sleep(250);
+			win.classList.add('show');
+			await sleep(1500);
+			lit(6);
+			pick.innerHTML = render(CHAT, { ids: true, typed: ID1, sel: FIRST.length }) + '\n<span class="sbar"> IDS · type an id to end there · Enter copy</span>';
+			await sleep(1100);
+			lit(7);
+			pick.innerHTML = render(CHAT, { ids: true, sel: PICKED.length }) + '\n<span class="sbar"> Enter copy · arrows adjust · Backspace undo</span>';
+			await sleep(1000);
+			lit(8);
+			await sleep(250);
+			win.classList.remove('show');
+			await sleep(220);
+			chat.innerHTML = render(done);
+			await sleep(4200);
+		}
+	}
+	loop();
+})();
 </script>
 </body>
 </html>
